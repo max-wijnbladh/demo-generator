@@ -23,6 +23,71 @@ function doGet() {
 // =====================================================================================
 
 /**
+ * Checks if a demo user already exists in the directory for the current app user.
+ * If so, it returns their data. Otherwise, it returns a failure status.
+ * This is called on initial app load.
+ */
+function getInitialAppState() {
+  const requestingUserEmail = Session.getActiveUser().getEmail();
+  if (!requestingUserEmail) {
+    // Cannot identify the user running the script.
+    return { success: false, error: "Could not identify the requesting user." };
+  }
+
+  // Construct the potential demo email address based on the app user's email
+  // [FIXED] Removed the special case for mawi@google.com
+  const requestingUserPrefix = requestingUserEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+  const primaryEmail = `${requestingUserPrefix}@${PRIMARY_DOMAIN_CONFIG}`;
+
+  const token = getAdminAccessToken();
+  if (!token) {
+     return { success: false, error: "Authentication failed. Could not get admin token." };
+  }
+
+  try {
+    const checkUserUrl = `https://admin.googleapis.com/admin/directory/v1/users/${primaryEmail}`;
+    const checkOptions = {
+      method: "GET",
+      headers: { "Authorization": "Bearer " + token },
+      muteHttpExceptions: true
+    };
+    const checkResponse = UrlFetchApp.fetch(checkUserUrl, checkOptions);
+
+    if (checkResponse.getResponseCode() === 200) {
+      // User EXISTS. Load their data.
+      console.log(`Initial check: User ${primaryEmail} already exists. Loading their data.`);
+      const existingUser = JSON.parse(checkResponse.getContentText());
+      
+      const provisionResult = {
+        email: primaryEmail,
+        password: null, // IMPORTANT: Never send the password back on initial load for security.
+        firstName: existingUser.name.givenName,
+        lastName: existingUser.name.familyName
+      };
+
+      // Save the found user's data to properties so other functions can use it
+      saveDemoState(provisionResult, null); 
+      const savedDemoScript = PropertiesService.getUserProperties().getProperty('savedDemoScript');
+
+      return {
+        success: true,
+        provisionResult: provisionResult,
+        demoScript: savedDemoScript ? JSON.parse(savedDemoScript) : null
+      };
+    } else {
+      // User does NOT exist. Tell the UI to show the creation form.
+      console.log(`Initial check: User ${primaryEmail} does not exist.`);
+      clearDemoState(); // Clear any potentially old/stale data
+      return { success: false };
+    }
+  } catch (e) {
+    console.error(`Exception during initial app state check for ${primaryEmail}: ${e.message}`);
+    return { success: false, error: "A network exception occurred during the initial check: " + e.message };
+  }
+}
+
+
+/**
  * Creates a new user or retrieves an existing one.
  * @param {object} nameInfo An object with {firstName, lastName}.
  * @returns {object} The result of the provisioning, including success status, credentials, and error message if any.
@@ -164,72 +229,6 @@ function generateDemoScript(demoContext) {
   }
 }
 
-// =====================================================================================
-// State Management Functions
-// =====================================================================================
-function saveDemoState(provisionResult, demoScript) {
-  try {
-    const userProperties = PropertiesService.getUserProperties();
-    if (provisionResult) {
-      userProperties.setProperty('savedProvisionResult', JSON.stringify(provisionResult));
-    }
-    if (demoScript) {
-      userProperties.setProperty('savedDemoScript', JSON.stringify(demoScript));
-    }
-  } catch(e) {
-    console.error("Error saving state to UserProperties: " + e.toString());
-  }
-}
-
-function loadDemoState() {
-  try {
-    const userProperties = PropertiesService.getUserProperties();
-    const savedProvisionResult = userProperties.getProperty('savedProvisionResult');
-    
-    if (savedProvisionResult) {
-      const savedDemoScript = userProperties.getProperty('savedDemoScript');
-      const result = {
-        provisionResult: JSON.parse(savedProvisionResult),
-        demoScript: savedDemoScript ? JSON.parse(savedDemoScript) : null
-      };
-      // Never send the password back on initial load for security.
-      if (result.provisionResult.password) {
-        delete result.provisionResult.password;
-      }
-      return result;
-    }
-  } catch(e) {
-     console.error("Error loading or parsing state from UserProperties: " + e.toString());
-     // Clear potentially corrupted properties
-     clearDemoState();
-  }
-  return null;
-}
-
-/**
- * Internal function to clear UserProperties.
- */
-function clearDemoState() {
-  const userProperties = PropertiesService.getUserProperties();
-  userProperties.deleteProperty('savedProvisionResult');
-  userProperties.deleteProperty('savedDemoScript');
-  console.log('Internal call: Demo state cleared.');
-}
-
-/**
- * Clears only the saved demo script from UserProperties.
- * Accessible from the client side for the "Start Over" button (for script only).
- */
-function clearDemoScriptOnly() {
-  PropertiesService.getUserProperties().deleteProperty('savedDemoScript');
-  console.log('Demo script data cleared.');
-}
-
-/**
- * [FIXED] Clears only the application-specific properties for the current user.
- * This is used for the "Start Over" button.
-}
-
 /**
  * Deletes the demo account user and clears the state.
  * @param {string} userEmail The email of the user to delete.
@@ -270,6 +269,67 @@ function deleteDemoAccount(userEmail) {
     return { success: false, error: "A network exception occurred during deletion." };
   }
 }
+
+// =====================================================================================
+// State Management Functions
+// =====================================================================================
+function saveDemoState(provisionResult, demoScript) {
+  try {
+    const userProperties = PropertiesService.getUserProperties();
+    if (provisionResult) {
+      userProperties.setProperty('savedProvisionResult', JSON.stringify(provisionResult));
+    }
+    if (demoScript) {
+      userProperties.setProperty('savedDemoScript', JSON.stringify(demoScript));
+    }
+  } catch(e) {
+    console.error("Error saving state to UserProperties: " + e.toString());
+  }
+}
+
+/**
+ * [ADDED BACK] Loads the currently saved state from UserProperties.
+ * This is used by functions that run after the initial load.
+ */
+function loadDemoState() {
+  try {
+    const userProperties = PropertiesService.getUserProperties();
+    const savedProvisionResult = userProperties.getProperty('savedProvisionResult');
+    
+    if (savedProvisionResult) {
+      const savedDemoScript = userProperties.getProperty('savedDemoScript');
+      const result = {
+        provisionResult: JSON.parse(savedProvisionResult),
+        demoScript: savedDemoScript ? JSON.parse(savedDemoScript) : null
+      };
+      return result;
+    }
+  } catch(e) {
+     console.error("Error loading or parsing state from UserProperties: " + e.toString());
+     // Clear potentially corrupted properties
+     clearDemoState();
+  }
+  return null;
+}
+
+/**
+ * Clears all demo-related UserProperties.
+ */
+function clearDemoState() {
+  const userProperties = PropertiesService.getUserProperties();
+  userProperties.deleteProperty('savedProvisionResult');
+  userProperties.deleteProperty('savedDemoScript');
+  console.log('Internal call: Demo state cleared.');
+}
+
+/**
+ * Clears only the saved demo script from UserProperties.
+ */
+function clearDemoScriptOnly() {
+  PropertiesService.getUserProperties().deleteProperty('savedDemoScript');
+  console.log('Demo script data cleared.');
+}
+
 
 // =====================================================================================
 // Helper & Core Logic Functions
@@ -316,10 +376,8 @@ function createDemoUserInRoot(requestingUserEmail, firstName, lastName) {
   const token = getAdminAccessToken();
   if (!token) return { success: false, error: "Could not get authentication token to manage users." };
 
-  let requestingUserPrefix = requestingUserEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-  if (requestingUserEmail === "mawi@google.com") {
-    requestingUserPrefix = "mawi" + Math.floor(Math.random() * 1000);
-  }
+  // [FIXED] Removed the special case for mawi@google.com
+  const requestingUserPrefix = requestingUserEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
   const primaryEmail = `${requestingUserPrefix}@${PRIMARY_DOMAIN_CONFIG}`;
 
   try {
@@ -445,7 +503,7 @@ function getOAuthService_(privateKey, clientEmail) {
 }
 
 function getService_() {
-  const private_key = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDsphzrkBjIePMg\nyYGBGOPkewPKw2T4fbbfA4QQYnqP+GxN2kuve+E5mcDytGyESBUa9eM2q8LMbQ7U\nzqkntCG2Ug7CY+9iiVm8bHwrKXjzeDEvOlN1++gpnzQH15up8Uq8fq/JWtztYi0L\n1U4NK6B/aCDyhYO+oX1OQyj4DvZS35pzBqAbw/CmG3pHmh/CmG1u/lk3diAbmMiW\nwvDNnKxKODGPiVI/rp1w6DfdjzcTwg8hiJ3+lWubcuTZ3Z2FmRluRd8XFwDwqbuc\nKfosxsQgHw13heCoALfZILnew4yOR0YsR43kyaHofagieL94OGgR8MTwo0ym6lHV\nSbxeXaOVAgMBAAECggEAAaC0Tl0QTW791I6L/EfW57zsBPg8qw93c1VkpKfsLpwM\nDGDBXztrjGOFteEXrtmI76EJx0W0ds/vOdMS8BLneVDtmzRDe+hiYPzFL032FKl/\nVtMuPMi7lG9s+WiMm+nana0oi/PNHjm+SyYvq3eqI+Gi+hgTJvu9hfrJkSPOWYMj\njgdo8p3s6FXM5U6V2jt0rQ9/m9q8KQyNbhhA8eEiaUZ/jwM8DIwoFPW+icMH2NGW\nBz7pT3feJ6BqVI3a86Rf+kxo18MCGe7VhYTs9sRCtefiMuPoHTmMIXz6imoRoTcm\nYSqoSG14uFD9j2S9SBRN5kPVZ3DTkMFlEXJ9t118JwKBgQD4nhOpRrPVl/xxkwq2\n7re3dr2174QTyMAsLmKiEyt5LlBVecktZAVNZJ2rpnRk8ul9ZqzxdZt5LVAUagO4\nENsYO2/qErONu3EcQjqWkStKeJrOW2NJNMnZgT6ta0PQxxsaWUG6PAcOp4+TMBwj\nchxLmQG3szIrRzeVoj1o1SaXdwKBgQDzrQ3Us99VcPBgOOQZD36ERPtW3FYm5OCx\n8d2BpEoslr6egKH4R7qkJv/99BgpteqgRClIIE0IlNW58PFCBlgUh8KHHOSFiST5\nhwgkiw0mFDcn6fqDAyAIJQjaIZ50wEezaZ3Emiy6jxlkrjTMPGBaIYxNyLByiWFN\nLx7P0yu4UwKBgBY586IHix5GVzBEKAoQr2X8fJteTV2DbgLFJtY8hn9v74ikuaKQ\nNZUksJ/e4rr/qHYojr+LdxnPPkCE9c4n255/+dJgV6MNJeCT3y8EzWz7+UMHkonB\n6WXDkznnxAlPM5IYdrLSmQLrYf+TpoBYvETZ6fhlUc/irwp2lazgmXGjAoGBAIBN\nTyn+p4oqVDal3dwgH2Jvm9MpYqdJ/dFT42ieY3vEx4tXeXDr+6bw7fr+KjbUFTzb\nhsz2TPlGvJ4R8kXsZzYwIUnY+a4h/vjvk2cCXCL/o+b9OK0A2T3Qmi+YYgFhOJ+L\n7ckV0JVOQXWUkDI1XBo47dIK6HT2RuhH9jZBHxUHAoGAAunSPHqU2XU1HP0X57eo\n1DVKkR8ZbUwZPl2Km9KZWsOym26ChsDPOeoDqgFBXjEPFsYdcJ79dEkjByMIJImK\nKf0btVWkgVAWeXAbCoWDieMlWe+G5Q0cFyHZquFZMJu+2jRwOTduqCGAFOT3OwzE\nWhR+uwkARi6nRqaxpXbwitY=\n-----END PRIVATE KEY-----\n";
+  const private_key = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDsphzrkBjIePMg\nyYGBGOPkewPKw2T4fbbfA4QQYnqP+GxN2kuve+E5mcDytGyESBUa9eM2q8LMbQ7U\nzqkntCG2Ug7CY+9iiVm8bHwrKXjzeDEvOlN1++gpnzQH15up8Uq8fq/JWtztYi0L\n1U4NK6B/aCDyhYO+oX1OQyj4DvZS35pzBqAbw/CmG3pHmh/CmG1u/lk3diAbmMiW\nwvDNnKxKODGPiVI/rp1w6DfdjzcTwg8hiJ3+lWubcuTZ3Z2FmRluRd8XFwDwqbuc\nKfosxsQgHw13heCoALfZILnew4yOR0YsR43kyaHofagieL94OGgR8MTwo0ym6lHV\nSbxeXaOVAgMBAAECggEAAaC0Tl0QTW791I6L/EfW57zsBPg8qw93c1VVkpKfsLpwM\nDGDBXztrjGOFteEXrtmI76EJx0W0ds/vOdMS8BLneVDtmzRDe+hiYPzFL032FKl/\nVtMuPMi7lG9s+WiMm+nana0oi/PNHjm+SyYvq3eqI+Gi+hgTJvu9hfrJkSPOWYMj\njgdo8p3s6FXM5U6V2jt0rQ9/m9q8KQyNbhhA8eEiaUZ/jwM8DIwoFPW+icMH2NGW\nBz7pT3feJ6BqVI3a86Rf+kxo18MCGe7VhYTs9sRCtefiMuPoHTmMIXz6imoRoTcm\nYSqoSG14uFD9j2S9SBRN5kPVZ3DTkMFlEXJ9t118JwKBgQD4nhOpRrPVl/xxkwq2\n7re3dr2174QTyMAsLmKiEyt5LlBVecktZAVNZJ2rpnRk8ul9ZqzxdZt5LVAUagO4\nENsYO2/qErONu3EcQjqWkStKeJrOW2NJNMnZgT6ta0PQxxsaWUG6PAcOp4+TMBwj\nchxLmQG3szIrRzeVoj1o1SaXdwKBgQDzrQ3Us99VcPBgOOQZD36ERPtW3FYm5OCx\n8d2BpEoslr6egKH4R7qkJv/99BgpteqgRClIIE0IlNW58PFCBlgUh8KHHOSFiST5\nhwgkiw0mFDcn6fqDAyAIJQjaIZ50wEezaZ3Emiy6jxlkrjTMPGBaIYxNyLByiWFN\nLx7P0yu4UwKBgBY586IHix5GVzBEKAoQr2X8fJteTV2DbgLFJtY8hn9v74ikuaKQ\nNZUksJ/e4rr/qHYojr+LdxnPPkCE9c4n255/+dJgV6MNJeCT3y8EzWz7+UMHkonB\n6WXDkznnxAlPM5IYdrLSmQLrYf+TpoBYvETZ6fhlUc/irwp2lazgmXGjAoGBAIBN\nTyn+p4oqVDal3dwgH2Jvm9MpYqdJ/dFT42ieY3vEx4tXeXDr+6bw7fr+KjbUFTzb\nhsz2TPlGvJ4R8kXsZzYwIUnY+a4h/vjvk2cCXCL/o+b9OK0A2T3Qmi+YYgFhOJ+L\n7ckV0JVOQXWUkDI1XBo47dIK6HT2RuhH9jZBHxUHAoGAAunSPHqU2XU1HP0X57eo\n1DVKkR8ZbUwZPl2Km9KZWsOym26ChsDPOeoDqgFBXjEPFsYdcJ79dEkjByMIJImK\nKf0btVWkgVAWeXAbCoWDieMlWe+G5Q0cFyHZquFZMJu+2jRwOTduqCGAFOT3OwzE\nWhR+uwkARi6nRqaxpXbwitY=\n-----END PRIVATE KEY-----\n";
   const client_email = "ai-demos@cymbal-workshops.iam.gserviceaccount.com";
 
   var service = getOAuthService_(private_key, client_email);
