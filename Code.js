@@ -119,7 +119,7 @@ function resetPasswordForDemoUser() {
  * @param {string} demoContext The user-provided context for the demo.
  * @returns {object} The result of the script generation, including the script object.
  */
-function generateScript(demoContext) {
+function generateDemoScript(demoContext) {
   const savedState = loadDemoState();
   if (!savedState || !savedState.provisionResult) {
     return {
@@ -146,6 +146,18 @@ function generateScript(demoContext) {
 
   try {
     const scriptObject = JSON.parse(scriptGenerationResult.text);
+
+    // --- NEW: VALIDATION BLOCK ---
+    // Check if the parsed object has the keys required by the front-end.
+    if (!scriptObject.title || !scriptObject.steps || !Array.isArray(scriptObject.steps)) {
+      console.error('[Code.gs] AI returned valid JSON but with missing required keys (title/steps).', JSON.stringify(scriptObject));
+      return { 
+        success: false, 
+        error: "The AI's response was missing the required 'title' or 'steps' fields. Please try generating the script again." 
+      };
+    }
+    // --- END: VALIDATION BLOCK ---
+
     // Save the new script along with the existing user data
     saveDemoState(savedState.provisionResult, scriptObject);
     return {
@@ -204,14 +216,6 @@ function clearDemoState() {
 }
 
 /**
- * Clears the saved demo state from UserProperties.
- * Accessible from the client side for the "Start Over" button.
- */
-function clearDemoStateForClient() {
-  clearDemoState();
-}
-
-/**
  * Clears all user properties for the current user.
  * This is used to reset the client-side state without deleting the user account.
  */
@@ -221,18 +225,46 @@ function clearUserData() {
 }
 
 /**
- * Deletes the demo account user.
+ * [FIXED] Deletes the demo account user.
  * @param {string} userEmail The email of the user to delete.
  * @returns {object} The result of the deletion attempt.
  */
 function deleteDemoAccount(userEmail) {
- const userId = userEmail; // The Admin SDK uses email as the user ID for delete
- const deleteResult = deleteUser(userId);
- if (deleteResult.success) {
- clearDemoState(); // Clear state only if deletion was successful
- }
- console.log('Delete Demo Account called for:', userEmail, 'Result:', deleteResult);
- return deleteResult;
+  if (!userEmail) {
+    return { success: false, error: "No user email provided for deletion." };
+  }
+  
+  const token = getAdminAccessToken();
+  if (!token) {
+    return { success: false, error: "Authentication failed. Could not get token to delete user." };
+  }
+
+  console.log(`Attempting to delete user: ${userEmail}`);
+  const url = `https://admin.googleapis.com/admin/directory/v1/users/${userEmail}`;
+  const options = {
+    method: "DELETE",
+    headers: { "Authorization": "Bearer " + token },
+    muteHttpExceptions: true
+  };
+  
+  try {
+    const response = UrlFetchApp.fetch(url, options);
+    const responseCode = response.getResponseCode();
+    
+    // 204 No Content is success. 404 means it was already gone. Both are "success" for our purposes.
+    if (responseCode === 204 || responseCode === 404) {
+      console.log(`Successfully processed deletion for user ${userEmail} (Status: ${responseCode}).`);
+      clearDemoState(); // Clear state since the user is gone.
+      return { success: true };
+    } else {
+      const errorBody = response.getContentText();
+      console.error(`Failed to delete user ${userEmail}. Code: ${responseCode}, Body: ${errorBody}`);
+      return { success: false, error: `Failed to delete user. Admin API responded with code ${responseCode}.` };
+    }
+  } catch (e) {
+    console.error(`Exception during user deletion for ${userEmail}: ${e.message}`);
+    return { success: false, error: "A network exception occurred during deletion." };
+  }
 }
 
 // =====================================================================================
@@ -396,7 +428,7 @@ function generateRandomPassword_(length = 14) {
 }
 
 // --- Authentication Functions (No changes) ---
-function getOAuthService_(){const e="service@cymbal-workshops.iam.gserviceaccount.com",t="-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDVbFypp0IRz/Bc\nnPn+i6afegr9Z6ZmDlPqF98i81GEBwirebfaqxuY2bUwihWVDZtGbfvOsspitfjl\nZOi4V5rdDv/1ZZZmEROjuMdhZvBZXxcGiImpstR90FsF9C+7jH5F6d4LUrPrk0gd\n1Mdc+Bpiu5Ww0Rci4e4VPuBYAA4VBFc1LlpICkVkpCG3d3hRo6c9DZ1kHWpMUsrc\n65Zp/MCG9fE5hXsUrY7Ufe6jqvJB2LATZIb7bbons28acsCooIGtiyXWUTudR12v\nbYuICUSNamh0SUcUDvTkdOrVQCmYrFpEOCInbpg/OavO7ryuffQo+GrgM9gfJVFU\nYJiBihtXAgMBAAECggEAJ2rEEnFZuoB1HCXB5klUlM+th+/Ew8SRqwKNq57Ux1Wl\nPEZWtoQzrJ9I35YhNk41B2T4xMwwpNqHBZcFhEZpy7ohe+kvRdqRjgNqj4q7iUYO\nsp41DqqApFv+87KNvk3MZI00/VJg+HlTMG9EAt+vv9x1YRq88yxXFIVwWdBoyWiV\neNuoZAY4NoRppCB7KCUGsmz1pIPgYG9/cSmLOXQBxcjiXUTk332l334anuB1T38Q\n+aN8sBSyOgzIWCjv7W8cC/cRDMq67yn6JbRotW4PzwNwbdn96R8gaefZzTTFOQyZ\nN35qCSFHBU/c98dQRR2vnllPDKg9VrADnUwRTo2awQKBgQDtON2z0197g8WROyBV\nGyQecl/Zdoz1gjRXMm2p4bipxZJ/kcpJjf9pyG0EDlUwEoZKxZElctuG1o0OM0b/\n9peuB5FIo2IIJL02jP7/+3QuQyUkK0U+nJ5XEPhSzYmhXo09p/VgTFa2JsZhZM2K\nOtWs0uAcaO4hVNSnW1oBQsZU0wKBgQDmUTrMBmDCKgkHwq7MZmDDr1w1mXCLCGMm\nU9crPgDZIO4vXiURSQm84VfvjdM3cQxWOvM53Xr4oYp+k+Wzs5Pgx+tgP2AQPLVF\nbZZXOjU1fB2vh+g0ZI1ZG+YYr0BhBMjw3sOnzwKPjjzCjejaNGtvhUg+xfcpszDO\nPQ0MyK+c7QKBgQDeJlvQNEj9hTg2OjWcHY+kh51lK9TzcNyNL+dsqLpjGmeH2cKj\nQTwIFy6oFrgGDcL/MKctd7NHQZLU0oZR297Nlb6jVIXQdH9RH5cJp7R0QmL8zRzK\ndqb9iCHUgTC7Eq2YKLrsVHD7obIzsM+e/FvvvYcsc8NVKXj/xNezyJGtCwKBgQDW\n1xzepnBpjiaAS7UcS7+lqhV8lhXqSzeZ0Aldd+f4ooQsQUiYeCYSP630crp89AIL\nCdBKwPPtq1pyOmnBmBiwTCyeyl9Epix9h/z+fviVXKKgU0liXg2P+rtHeWq3VWxP\na6zdAvgjiw3YeeGkcdNp4s0CaU3mYxV6vG5I54cQ/QKBgHf4sKDXQTTeQa5RqYap\ns1u3g+X2b2JjqQxFJVIpQSPiJxVx/MvkXUsAtxgXJAPljBVqWvLohGbpWxIxMzO0\nGEqe+kfaVyhgXgsgpcTxvV2Viv8L/EYA6a2JMHtijMMUrwX+yLBuy5WCSpp5ViNi\nfi9VSNqDV0jEVGRlyVmm2Pq9\n-----END PRIVATE KEY-----\n",o="mawi@cymbal.se",r=["https://www.googleapis.com/auth/admin.directory.user"];return OAuth2.createService("DemoGeneratorService_V5").setTokenUrl("https://accounts.google.com/o/oauth2/token").setPrivateKey(t).setIssuer(e).setSubject(o).setPropertyStore(PropertiesService.getScriptProperties()).setCache(CacheService.getScriptCache()).setScope(r.join(" "))}
+function getOAuthService_(){const e="service@cymbal-workshops.iam.gserviceaccount.com",t="-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDVbFypp0IRz/Bc\nnPn+i6afegr9Z6ZmDlPqF98i81GEBwirebfaqxuY2bUwihWVDZtGbfvOsspitfjl\nZOi4V5rdDv/1ZZZmEROjuMdhZvBZXxcGiImpstR90FsF9C+7jH5F6d4LUrPrk0gd\n1Mdc+Bpiu5Ww0Rci4e4VPuBYAA4VBFc1LlpICkVkpCG3d3hRo6c9DZ1kHWpMUsrc\n65Zp/MCG9fE5hXsUrY7Ufe6jqvJB2LATZIb7bbons28acsCooIGtiyXWUTudR12v\nbYuICUSNamh0SUcUDvTkdOrVQCmYrFpEOCInbpg/OavO7ryuffQo+GrgM9gfJVFU\nYJiBihtXAgMBAAECggEAJ2rEEnFZuoB1HCXB5klUlM+th+/Ew8SRqwKNq57Ux1Wl\nPEZWtoQzrJ9I35YhNk41B2T4xMwwpNqHBZcFhEZpy7ohe+kvRdqRjgNqj4q7iUYO\nsp41DqqApFv+87KNvk3MZI00/VJg+HlTMG9EAt+vv9x1YRq88yxXFIVwWdBoyWiV\neNuoZAY4NoRppCB7KCUGsmz1pIPgYG9/cSmLOXQBxcjiXUTk332l334anuB1T38Q\n+aN8sBSyOgzIWCjv7W8cC/cRDMq67yn6JbRotW4PzwNwbdn96R8gaefZzTTFOQyZ\nN35qCSFHBU/c98dQRR2vnllPDKg9VrADnUwRTo2awQKBgQDtON2z0197g8WROyBV\nGyQecl/Zdoz1gjRXMm2p4bipxZJ/kcpJjf9pyG0EDlUwEoZKxZElctuG1o0OM0b/\n9peuB5FIo2IIJL02jP7/+3QuQyUkK0U+nJ5XEPhSzYmhXo09p/VgTFa2JsZhZM2K\nOtWs0uAcaO4hVNSnW1oBQsZU0wKBgQDmUTrMBmDCKgkHwq7MZmDDr1w1mXCLCGMm\nU9crPgDZIO4vXiURSQm84VfvjdM3cQxWOvM53Xr4oYp+k+Wzs5Pgx+tgP2AQPLVF\nbZZXOjU1fB2vh+g0ZI1ZG+YYr0BhBMjw3sOnzwKPjjzCjejaNGtvhUg+xfcpszDO\nPQ0MyK+c7QKBgQDeJlvQNEj9hTg2OjWcHY+kh51lK9TzcNyNL+dsqLpjGmeH2cKj\nQTwIFy6oFrgGDcL/MKctd7NHQZLU0oZR297Nlb6jVIXQdH9RH5cJp7R0QmL8zRzK\ndqb9iCHUgTC7Eq2YKLrsVHD7obIzsM+e/FvvvYcsc8NVKXj/xNezyJGtCwKBgQDW\n1xzepnBpjiaAS7UcS7+lqhV8lhXqSzeZ0Aldd+f4ooQsQUiYeCYSP630crp89AIL\nCdBKwPPtq1pyOmnBmBiwTCyeyl9Epix9h/z+fviVXKKgU0liXg2P+rtHeWq3VWxP\na6zdAvgjiw3YeeGkcdNp4s0CaU3mYxV6vG5I54cQ/QKBgHf4sKDXQTTeQa5RqYap\ns1u3g+X2b2JjqQxFJVIpQSPiJxVx/MvkXUsAtxgXJAPljBVqWvLohGbpWxIxMzO0\nGEqe+kfaVyhgXgsgpcTxvV2Viv8L/EYA6a2JMHtijMMUrwX+yLBuy5WCSpp5ViNi\nfi9VSNqDV0jEVGRlyVmm2Pq9\n-----END PRIVATE KEY-----\n",o="mawi@google.com",r=["https://www.googleapis.com/auth/admin.directory.user"];return OAuth2.createService("DemoGeneratorService_V5").setTokenUrl("https://accounts.google.com/o/oauth2/token").setPrivateKey(t).setIssuer(e).setSubject(o).setPropertyStore(PropertiesService.getScriptProperties()).setCache(CacheService.getScriptCache()).setScope(r.join(" "))}
 function getService_(){const e=getOAuthService_();return e&&e.hasAccess()?e:(console.error("Failed to get a valid OAuth2 service or the service has no access."),null)}
 function getAdminAccessToken(){try{const e=getService_();if(e)return e.getAccessToken();throw new Error("Could not get a valid OAuth2 service object.")}catch(e){return console.error("Exception in getAdminAccessToken:",e.toString()),null}}
 function resetAuthentication(){getOAuthService_().reset()}

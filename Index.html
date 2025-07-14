@@ -224,21 +224,29 @@
         resetUi();
         google.script.run.withSuccessHandler(function() {}).clearUserData(); // Clear properties on Start Over click
     });
+
+    // --- CORRECTED BLOCK ---
     deleteAccountBtnEl.addEventListener('click', function() {
         if (confirm("Are you sure you want to delete this demo account? This action cannot be undone.")) {
-            google.script.run.withSuccessHandler(accountInfo => {
-                if (accountInfo && accountInfo.email) {
-                    google.script.run.withSuccessHandler(resetUi)
-                                     .withFailureHandler(err => onFailure(err.message))
-                                     .deleteDemoAccount(accountInfo.email);
-                } else {
-                    onFailure('No demo account found to delete.');
-                }
+            google.script.run
+                .withFailureHandler(err => onFailure(err.message || 'Failed to retrieve account info.'))
+                .withSuccessHandler(accountInfo => {
+                    if (accountInfo && accountInfo.email) {
+                        // If we got the email, proceed with deletion
+                        google.script.run
+                            .withSuccessHandler(resetUi)
+                            .withFailureHandler(err => onFailure(err.message))
+                            .deleteDemoAccount(accountInfo.email);
                     } else {
-                onFailure('Could not retrieve demo account information.');
-            }).getDemoAccountInfo();
+                        // Handle case where account info couldn't be found
+                        onFailure('No demo account found to delete.');
+                    }
+                })
+                .getDemoAccountInfo();
         }
     });
+    // --- END CORRECTED BLOCK ---
+
     resetPasswordBtnEl.addEventListener('click', handleResetPassword);
     copyScriptBtnEl.addEventListener('click', () => copyScriptToClipboard(copyScriptBtnEl));
     hamburgerButton.addEventListener('click', () => mobileMenu.classList.toggle('hidden'));
@@ -510,3 +518,4 @@
   </script>
 </body>
 </html>
+```
