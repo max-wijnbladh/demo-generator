@@ -110,7 +110,9 @@
 
       <section id="generatorSection" class="hidden">
         <div id="startOverContainer" class="text-center mb-8 hidden">
-         
+          <button id="startOverBtn" type="button" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-slate-600 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500">
+            <span class="material-symbols-outlined mr-2">refresh</span>Start a New Script
+          </button>
         </div>
 
         <div class="bg-white p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 prose max-w-none">
@@ -177,15 +179,16 @@
     const generateBtnEl = document.getElementById('generateBtn');
     const scriptResultDisplayEl = document.getElementById('scriptResultDisplay');
     const scriptContentEl = document.getElementById('scriptContent');
-    const scriptLoadingIndicatorEl = document.getElementById('scriptLoadingIndicator'); // [FIXED] New reference
+    const scriptLoadingIndicatorEl = document.getElementById('scriptLoadingIndicator');
     const copyScriptBtnEl = document.getElementById('copyScriptBtn');
     const exportDocBtnEl = document.getElementById('exportDocBtn');
+    const loadingIndicatorEl = document.getElementById('loadingIndicator');
     const loadingStatusEl = document.getElementById('loadingStatus');
     const errorDisplayEl = document.getElementById('errorDisplay');
     const errorMessageEl = document.getElementById('errorMessage');
     const startOverContainerEl = document.getElementById('startOverContainer');
-    const startOverBtnEl = document.getElementById('startOverBtn');
     const hamburgerButton = document.getElementById('hamburgerButton');
+    const mobileMenu = document.getElementById('mobileMenu');
     const navLinks = {
       account: [document.getElementById('navLinkAccount'), document.getElementById('mobileNavLinkAccount')],
       generator: [document.getElementById('navLinkGenerator'), document.getElementById('mobileNavLinkGenerator')]
@@ -208,8 +211,7 @@
             } else {
               showGeneratorView('form');
             }
-            startOverContainerEl.classList.remove('hidden');
-            showView('account');
+            showView('generator');
           } else {
             resetUi();
           }
@@ -225,6 +227,7 @@
     deleteAccountBtnEl.addEventListener('click', handleDeleteAccount);
     copyScriptBtnEl.addEventListener('click', () => copyScriptToClipboard(copyScriptBtnEl));
     hamburgerButton.addEventListener('click', () => mobileMenu.classList.toggle('hidden'));
+    document.getElementById('startOverBtn').addEventListener('click', handleStartOver);
     navLinks.account.forEach(el => el.addEventListener('click', () => showView('account')));
     navLinks.generator.forEach(el => el.addEventListener('click', () => showView('generator')));
 
@@ -245,7 +248,6 @@
             return onFailure(result.error || "An unknown error occurred during user creation.");
           }
           populateUserCredentials(result);
-          startOverContainerEl.classList.remove('hidden');
           showGeneratorView('form');
           showView('account');
         })
@@ -284,11 +286,15 @@
             .withSuccessHandler(response => {
                 if (response && response.success) {
                     userPasswordEl.textContent = response.password;
-                    resetPasswordContainerEl.classList.add('hidden'); // Hide after successful reset
+                    resetPasswordContainerEl.classList.add('hidden');
                 } else {
                     showError(response.error || 'Failed to reset password.');
                 }
-                // Actions to always perform after success
+                resetPasswordBtnEl.innerHTML = originalText;
+                resetPasswordBtnEl.disabled = false;
+            })
+            .withFailureHandler(err => {
+                showError(err.message || "An error occurred during password reset.");
                 resetPasswordBtnEl.innerHTML = originalText;
                 resetPasswordBtnEl.disabled = false;
             })
@@ -307,20 +313,27 @@
           updateLoadingStatus(`Deleting demo account ${userEmail}...`);
           google.script.run
               .withSuccessHandler(result => {
-                  if (result.success) resetUi();
-                  else onFailure(result.error || "Failed to delete account.");
+                  if (result.success) {
+                    resetUi();
+                  }
+                  else {
+                    onFailure(result.error || "Failed to delete account.");
+                  }
               })
               .withFailureHandler(onFailure)
               .deleteDemoAccount(userEmail);
       }
     }
+    
     function handleStartOver() {
-        // Call the client-side UI reset function
         resetScriptGeneratorUi();
-        // Call the server-side function to clear only the script data
         google.script.run
- .withSuccessHandler(function() {
- console.log('Demo script data cleared on the server.');
+            .withSuccessHandler(() => {
+                console.log('Demo script data cleared on the server.');
+            })
+            .withFailureHandler(err => {
+                console.error("Failed to clear script on server:", err);
+                showError("Could not clear the previous script from the server. You can still generate a new one.");
             })
             .clearDemoScriptOnly();
     }
@@ -339,13 +352,13 @@
     function resetScriptGeneratorUi() {
         scriptResultDisplayEl.classList.add('hidden');
         demoConfigFormEl.classList.remove('hidden');
+        startOverContainerEl.classList.add('hidden');
         scriptContentEl.innerHTML = '<p class="text-slate-400">Your generated script will appear here...</p>';
         demoContextInputEl.value = '';
-        generatorInstructionEl.textContent = 'Your demo account is ready. Now, describe your demo objective below to generate a script with AI.';
+        generatorInstructionEl.textContent = 'Your demo account is ready. Now, describe your demo objective below to generate a new script with AI.';
     }
 
     // --- UI Update & Rendering Functions ---
-    const loadingIndicatorEl = document.getElementById('loadingIndicator'); // Reference moved
     function showView(viewName) {
       loadingIndicatorEl.classList.add('hidden');
       accountSectionEl.classList.add('hidden');
@@ -365,16 +378,17 @@
       }
     }
     
-    // [FIXED] Updated function to control the new loader
     function showGeneratorView(view) {
         scriptResultDisplayEl.classList.add('hidden');
         demoConfigFormEl.classList.add('hidden');
         scriptLoadingIndicatorEl.classList.add('hidden');
-        
+        startOverContainerEl.classList.add('hidden'); // Hide by default
+
         if (view === 'form') {
             demoConfigFormEl.classList.remove('hidden');
         } else if (view === 'results') {
             scriptResultDisplayEl.classList.remove('hidden');
+            startOverContainerEl.classList.remove('hidden'); // Show when results are visible
         } else if (view === 'loading') {
             scriptLoadingIndicatorEl.classList.remove('hidden');
         }
@@ -399,7 +413,6 @@
 
     function onFailure(error) {
       showError(typeof error === 'string' ? error : error.message || "An unknown server error occurred.");
-      // On failure, always go back to the start
       resetUi();
     }
 
@@ -453,7 +466,6 @@
           li.textContent = sanitize(prereq);
           prereqsListEl.appendChild(li);
         });
-        scriptContentEl.appendChild(prereqsTitleEl);
         scriptContentEl.appendChild(prereqsListEl);
       }
 
@@ -505,12 +517,27 @@
     function copyScriptToClipboard(buttonElement) {
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = scriptContentEl.innerHTML;
+        
+        // This improved text extraction handles different node types for cleaner output
         let scriptText = Array.from(tempDiv.childNodes).map(node => {
-            if (node.nodeType !== Node.ELEMENT_NODE) return '';
-            if (['H2', 'H3'].includes(node.tagName)) return `\n${node.innerText.trim()}\n\n`;
-            if (node.classList.contains('content-block')) return `  ${node.innerText.trim()}\n\n`;
-            if (node.classList.contains('label-paragraph')) return `${node.innerText.trim()} `;
-            return node.innerText.trim();
+            if (node.nodeName === '#text') return ''; // Ignore whitespace nodes
+            const text = node.innerText?.trim();
+            if (!text) return '';
+            
+            if (['H2', 'H3'].includes(node.tagName)) {
+                return `\n\n${text}\n${'-'.repeat(text.length)}\n`;
+            }
+            if (node.tagName === 'P' && node.classList.contains('label-paragraph')) {
+                return `\n${text} `;
+            }
+            if (node.tagName === 'DIV' && node.classList.contains('content-block')) {
+                return `${text}\n`;
+            }
+             if (node.tagName === 'UL') {
+                let listItems = Array.from(node.querySelectorAll('li')).map(li => `  • ${li.innerText.trim()}`).join('\n');
+                return `${listItems}\n`;
+            }
+            return text;
         }).join('');
         
         navigator.clipboard.writeText(scriptText.trim()).then(() => {
