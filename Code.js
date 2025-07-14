@@ -217,11 +217,17 @@ function clearDemoState() {
 }
 
 /**
+ * Clears only the saved demo script from UserProperties.
+ * Accessible from the client side for the "Start Over" button (for script only).
+ */
+function clearDemoScriptOnly() {
+  PropertiesService.getUserProperties().deleteProperty('savedDemoScript');
+  console.log('Demo script data cleared.');
+}
+
+/**
  * [FIXED] Clears only the application-specific properties for the current user.
  * This is used for the "Start Over" button.
- */
-function clearUserData() {
-  clearDemoState();
 }
 
 /**
@@ -271,6 +277,7 @@ function deleteDemoAccount(userEmail) {
 function constructDemoScriptPrompt_(demoContext, demoUserFirstName, demoUserLastName, demoUserEmail) {
   return `
     You are an expert demo script writer for Google Workspace. Your task is to generate a step-by-step demo script based on user context.
+    
     Return ONLY a valid JSON object. Do not include any other text, Markdown formatting, or code fences like \`\`\`json.
     
     The JSON Schema must be:

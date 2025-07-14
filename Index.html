@@ -66,7 +66,7 @@
       
       <section id="accountSection">
         <div class="bg-white p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 prose max-w-none">
-          <h2 class="!mt-0"><span class="material-symbols-outlined mr-3 text-blue-600 text-3xl">badge</span>1. Demo Account</h2>
+          <h2 class="!mt-0"><span class="material-symbols-outlined mr-3 text-blue-600 text-3xl">badge</span>Demo Account</h2>
           
           <div id="userCreationForm" class="hidden">
              <p class="text-slate-600">Enter a name for the demo persona. A new Google Workspace account will be provisioned based on the current user's email address.</p>
@@ -97,16 +97,26 @@
                   <span class="material-symbols-outlined mr-2">lock_reset</span>Reset Password
                 </button>
              </div>
+             <div class="mt-4">
+                 <button id="deleteAccountBtn" type="button" class="mt-2 flex items-center justify-center px-4 py-2 border border-red-400 text-sm font-medium rounded-md shadow-sm text-red-800 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                   <span class="material-symbols-outlined mr-2">person_remove</span>Delete Account
+                 </button>
+             </div>
+
              <div class="mt-5 pt-4 border-t border-gray-200"><a href="https://mail.google.com" target="_blank" class="text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium">Log in to Google Workspace</a></div>
           </div>
         </div>
       </section>
 
       <section id="generatorSection" class="hidden">
+        <div id="startOverContainer" class="text-center mb-8 hidden">
+         
+        </div>
+
         <div class="bg-white p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 prose max-w-none">
-            <h2 class="!mt-0"><span class="material-symbols-outlined mr-3 text-blue-600 text-3xl">smart_toy</span>2. Generate Demo Script</h2>
-            <p id="generatorInstruction" class="text-slate-600">Your demo account is ready. You can now generate a script for it.</p>
-            
+            <h2 class="!mt-0"><span class="material-symbols-outlined mr-3 text-blue-600 text-3xl">smart_toy</span>Generate Demo Script</h2>
+            <p id="generatorInstruction" class="text-slate-600">First, create a demo account. Once the account is ready, you can describe your demo objective below to generate a script.</p>
+
             <div id="scriptLoadingIndicator" class="hidden text-center my-10 p-6">
                 <div class="animate-spin w-8 h-8 border-4 border-gray-200 border-t-blue-600 rounded-full mx-auto mb-4"></div>
                 <p class="text-md font-medium text-slate-600 mt-2">AI is writing your script...</p>
@@ -123,7 +133,7 @@
             <div id="scriptResultDisplay" class="hidden">
                  <div class="flex justify-between items-center mb-4">
                     <h3 class="!m-0">Your Generated Script</h3>
-                    <button id="copyScriptBtn" class="flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md shadow-sm text-slate-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"><span class="material-symbols-outlined mr-1.5 text-sm">content_paste</span>Copy Script</button>
+                    <button id="copyScriptBtn" class="flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md shadow-sm text-slate-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ml-auto"><span class="material-symbols-outlined mr-1.5 text-sm">content_paste</span>Copy Script</button>
                 </div>
                 <div id="scriptContent" class="prose max-w-none"><p class="text-slate-400">Your generated script will appear here...</p></div>
             </div>
@@ -144,12 +154,6 @@
           </div>
         </div>
       </div>
-      
-       <div id="startOverContainer" class="text-center mt-8 hidden">
-          <button id="startOverBtn" type="button" class="flex items-center justify-center px-6 py-2 border border-red-400 text-base font-medium rounded-md shadow-sm text-red-800 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
-             <span class="flex items-center"><span class="material-symbols-outlined mr-2">delete</span>Delete Account & Start Over</span>
-          </button>
-      </div>
     </div>
   </main>
 
@@ -165,6 +169,7 @@
     const userEmailEl = document.getElementById('userEmail');
     const userPasswordEl = document.getElementById('userPassword');
     const resetPasswordContainerEl = document.getElementById('resetPasswordContainer');
+    const deleteAccountBtnEl = document.getElementById('deleteAccountBtn');
     const resetPasswordBtnEl = document.getElementById('resetPasswordBtn');
     const generatorInstructionEl = document.getElementById('generatorInstruction');
     const demoConfigFormEl = document.getElementById('demoConfigForm');
@@ -174,14 +179,13 @@
     const scriptContentEl = document.getElementById('scriptContent');
     const scriptLoadingIndicatorEl = document.getElementById('scriptLoadingIndicator'); // [FIXED] New reference
     const copyScriptBtnEl = document.getElementById('copyScriptBtn');
-    const loadingIndicatorEl = document.getElementById('loadingIndicator');
+    const exportDocBtnEl = document.getElementById('exportDocBtn');
     const loadingStatusEl = document.getElementById('loadingStatus');
     const errorDisplayEl = document.getElementById('errorDisplay');
     const errorMessageEl = document.getElementById('errorMessage');
     const startOverContainerEl = document.getElementById('startOverContainer');
     const startOverBtnEl = document.getElementById('startOverBtn');
     const hamburgerButton = document.getElementById('hamburgerButton');
-    const mobileMenu = document.getElementById('mobileMenu');
     const navLinks = {
       account: [document.getElementById('navLinkAccount'), document.getElementById('mobileNavLinkAccount')],
       generator: [document.getElementById('navLinkGenerator'), document.getElementById('mobileNavLinkGenerator')]
@@ -218,7 +222,7 @@
     createUserBtnEl.addEventListener('click', handleCreateUser);
     generateBtnEl.addEventListener('click', handleGenerateScript);
     resetPasswordBtnEl.addEventListener('click', handleResetPassword);
-    startOverBtnEl.addEventListener('click', handleDeleteAccount);
+    deleteAccountBtnEl.addEventListener('click', handleDeleteAccount);
     copyScriptBtnEl.addEventListener('click', () => copyScriptToClipboard(copyScriptBtnEl));
     hamburgerButton.addEventListener('click', () => mobileMenu.classList.toggle('hidden'));
     navLinks.account.forEach(el => el.addEventListener('click', () => showView('account')));
@@ -292,25 +296,35 @@
     }
 
     function handleDeleteAccount() {
-        const email = userEmailEl.textContent;
-        if (!email || !confirm("Are you sure you want to delete this demo account? This action cannot be undone.")) {
-            return;
-        }
-        showView('loading');
-        updateLoadingStatus('Deleting account and resetting...');
+      const userEmail = userEmailEl.textContent.trim();
+      if (!userEmail || userEmail === "N/A") {
+          showError("No demo account email found to delete.");
+          return;
+      }
+
+      if (confirm(`Are you sure you want to delete the demo account (${userEmail})? This action cannot be undone.`)) {
+          showView('loading');
+          updateLoadingStatus(`Deleting demo account ${userEmail}...`);
+          google.script.run
+              .withSuccessHandler(result => {
+                  if (result.success) resetUi();
+                  else onFailure(result.error || "Failed to delete account.");
+              })
+              .withFailureHandler(onFailure)
+              .deleteDemoAccount(userEmail);
+      }
+    }
+    function handleStartOver() {
+        // Call the client-side UI reset function
+        resetScriptGeneratorUi();
+        // Call the server-side function to clear only the script data
         google.script.run
-            .withSuccessHandler(response => {
-                if (!response || !response.success) {
-                   return onFailure(response.error || 'Failed to delete account, but session was cleared.');
-                }
-                // [FIXED] Instead of reloading, just reset the UI.
-                resetUi();
+ .withSuccessHandler(function() {
+ console.log('Demo script data cleared on the server.');
             })
-            .withFailureHandler(onFailure)
-            .deleteDemoAccount(email);
+            .clearDemoScriptOnly();
     }
 
-    // --- UI Update & Rendering Functions ---
     function resetUi() {
         userCreationFormEl.classList.remove('hidden');
         userCredentialsDisplayEl.classList.add('hidden');
@@ -322,6 +336,16 @@
         showView('account');
     }
 
+    function resetScriptGeneratorUi() {
+        scriptResultDisplayEl.classList.add('hidden');
+        demoConfigFormEl.classList.remove('hidden');
+        scriptContentEl.innerHTML = '<p class="text-slate-400">Your generated script will appear here...</p>';
+        demoContextInputEl.value = '';
+        generatorInstructionEl.textContent = 'Your demo account is ready. Now, describe your demo objective below to generate a script with AI.';
+    }
+
+    // --- UI Update & Rendering Functions ---
+    const loadingIndicatorEl = document.getElementById('loadingIndicator'); // Reference moved
     function showView(viewName) {
       loadingIndicatorEl.classList.add('hidden');
       accountSectionEl.classList.add('hidden');
