@@ -105,14 +105,21 @@
       <section id="generatorSection" class="hidden">
         <div class="bg-white p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 prose max-w-none">
             <h2 class="!mt-0"><span class="material-symbols-outlined mr-3 text-blue-600 text-3xl">smart_toy</span>2. Generate Demo Script</h2>
-            <p id="generatorInstruction" class="text-slate-600">First, create a demo account. Once the account is ready, you can describe your demo objective below to generate a script.</p>
+            <p id="generatorInstruction" class="text-slate-600">Your demo account is ready. You can now generate a script for it.</p>
+            
+            <div id="scriptLoadingIndicator" class="hidden text-center my-10 p-6">
+                <div class="animate-spin w-8 h-8 border-4 border-gray-200 border-t-blue-600 rounded-full mx-auto mb-4"></div>
+                <p class="text-md font-medium text-slate-600 mt-2">AI is writing your script...</p>
+            </div>
+
             <div id="demoConfigForm" class="mt-6">
                 <label for="demoContext" class="block text-sm font-medium text-slate-700 mb-1">Demo Objective / Customer Context:</label>
                 <textarea id="demoContext" rows="5" class="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 placeholder-slate-400" placeholder="e.g., Showcase how Gemini in Gmail and Docs can help a sales team save time creating proposals and responding to RFPs."></textarea>
-                <button id="generateBtn" type="button" class="mt-6 w-full flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-slate-400 disabled:cursor-not-allowed">
+                <button id="generateBtn" type="button" class="mt-6 w-full flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                     <span class="material-symbols-outlined mr-2">rocket_launch</span>Generate Demo Script
                 </button>
             </div>
+
             <div id="scriptResultDisplay" class="hidden">
                  <div class="flex justify-between items-center mb-4">
                     <h3 class="!m-0">Your Generated Script</h3>
@@ -165,6 +172,7 @@
     const generateBtnEl = document.getElementById('generateBtn');
     const scriptResultDisplayEl = document.getElementById('scriptResultDisplay');
     const scriptContentEl = document.getElementById('scriptContent');
+    const scriptLoadingIndicatorEl = document.getElementById('scriptLoadingIndicator'); // [FIXED] New reference
     const copyScriptBtnEl = document.getElementById('copyScriptBtn');
     const loadingIndicatorEl = document.getElementById('loadingIndicator');
     const loadingStatusEl = document.getElementById('loadingStatus');
@@ -197,11 +205,10 @@
               showGeneratorView('form');
             }
             startOverContainerEl.classList.remove('hidden');
+            showView('account');
           } else {
-            userCreationFormEl.classList.remove('hidden');
-            userCredentialsDisplayEl.classList.add('hidden');
+            resetUi();
           }
-          showView('account');
         })
         .withFailureHandler(onFailure)
         .loadDemoState();
@@ -235,7 +242,7 @@
           }
           populateUserCredentials(result);
           startOverContainerEl.classList.remove('hidden');
-          showGeneratorView('form'); // Show the script form
+          showGeneratorView('form');
           showView('account');
         })
         .withFailureHandler(onFailure)
@@ -249,11 +256,11 @@
         return showError("Please enter a demo objective.");
       }
 
-      showGeneratorView('loading'); // Show loading within the generator section
+      showGeneratorView('loading');
       google.script.run
         .withSuccessHandler(result => {
           if (!result || !result.success) {
-            showGeneratorView('form'); // Go back to form on failure
+            showGeneratorView('form');
             return showError(result.error || "The AI failed to generate a script. Please try again.");
           }
           renderScriptFromObject(result.demoScript);
@@ -266,14 +273,14 @@
     function handleResetPassword() {
         hideError();
         const originalText = resetPasswordBtnEl.innerHTML;
-        resetPasswordBtnEl.innerHTML = '<div class="animate-spin w-5 h-5 border-2 border-gray-400 border-t-yellow-600 rounded-full"></div>';
+        resetPasswordBtnEl.innerHTML = '<div class="animate-spin w-5 h-5 border-2 border-gray-400 border-t-yellow-600 rounded-full mx-auto"></div>';
         resetPasswordBtnEl.disabled = true;
 
         google.script.run
             .withSuccessHandler(response => {
                 if (response && response.success) {
                     userPasswordEl.textContent = response.password;
-                    resetPasswordContainerEl.classList.add('hidden'); // Hide after successful reset
+                    resetPasswordContainerEl.classList.add('hidden');
                 } else {
                     showError(response.error || 'Failed to reset password.');
                 }
@@ -298,14 +305,25 @@
                 if (!response || !response.success) {
                    return onFailure(response.error || 'Failed to delete account, but session was cleared.');
                 }
-                // Reload the page to its initial state
-                window.location.reload();
+                // [FIXED] Instead of reloading, just reset the UI.
+                resetUi();
             })
             .withFailureHandler(onFailure)
             .deleteDemoAccount(email);
     }
 
     // --- UI Update & Rendering Functions ---
+    function resetUi() {
+        userCreationFormEl.classList.remove('hidden');
+        userCredentialsDisplayEl.classList.add('hidden');
+        generatorSectionEl.classList.add('hidden');
+        startOverContainerEl.classList.add('hidden');
+        userFirstNameInputEl.value = '';
+        userLastNameInputEl.value = '';
+        demoContextInputEl.value = '';
+        showView('account');
+    }
+
     function showView(viewName) {
       loadingIndicatorEl.classList.add('hidden');
       accountSectionEl.classList.add('hidden');
@@ -325,26 +343,23 @@
       }
     }
     
+    // [FIXED] Updated function to control the new loader
     function showGeneratorView(view) {
         scriptResultDisplayEl.classList.add('hidden');
         demoConfigFormEl.classList.add('hidden');
-        scriptContentEl.previousElementSibling.classList.add('hidden'); // Hides the loading indicator within the script section
+        scriptLoadingIndicatorEl.classList.add('hidden');
         
         if (view === 'form') {
             demoConfigFormEl.classList.remove('hidden');
         } else if (view === 'results') {
             scriptResultDisplayEl.classList.remove('hidden');
         } else if (view === 'loading') {
-            // This is a placeholder for a potential smaller loader
-            demoConfigFormEl.classList.add('hidden');
-            scriptResultDisplayEl.classList.add('hidden');
-            // You could show a smaller loader here if you add one
+            scriptLoadingIndicatorEl.classList.remove('hidden');
         }
     }
 
     function populateUserCredentials(provisionResult) {
         userEmailEl.textContent = provisionResult.email || "N/A";
-        
         userCreationFormEl.classList.add('hidden');
         userCredentialsDisplayEl.classList.remove('hidden');
 
@@ -356,13 +371,14 @@
             resetPasswordContainerEl.classList.remove('hidden');
         }
         
-        generatorInstructionEl.textContent = "Your demo account is ready. You can now generate a script for it in the 'Generate Demo' section.";
+        generatorInstructionEl.textContent = "Your demo account is ready. You can now generate a script for it.";
         generateBtnEl.disabled = false;
     }
 
     function onFailure(error) {
       showError(typeof error === 'string' ? error : error.message || "An unknown server error occurred.");
-      showView('account'); // Default to account view on failure
+      // On failure, always go back to the start
+      resetUi();
     }
 
     function showError(message) {
@@ -391,6 +407,7 @@
       }
       
       const titleEl = document.createElement('h2');
+      titleEl.className = "!text-left";
       titleEl.textContent = scriptObject.title;
       scriptContentEl.appendChild(titleEl);
  
@@ -414,6 +431,7 @@
           li.textContent = sanitize(prereq);
           prereqsListEl.appendChild(li);
         });
+        scriptContentEl.appendChild(prereqsTitleEl);
         scriptContentEl.appendChild(prereqsListEl);
       }
 
