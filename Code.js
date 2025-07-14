@@ -1,9 +1,6 @@
 /**
  * Code.gs - CONSOLIDATED Server-Side Logic for the Demo Script Generator
  * This version uses a robust JSON-based architecture with a two-step UI flow.
- *
- * This version handles existing users by showing their info without a password
- * and providing a separate function to reset the password on demand.
  */
 
 // --- Configuration Constants ---
@@ -146,17 +143,11 @@ function generateDemoScript(demoContext) {
 
   try {
     const scriptObject = JSON.parse(scriptGenerationResult.text);
-
-    // --- NEW: VALIDATION BLOCK ---
-    // Check if the parsed object has the keys required by the front-end.
+    
+    // Validate the script object
     if (!scriptObject.title || !scriptObject.steps || !Array.isArray(scriptObject.steps)) {
-      console.error('[Code.gs] AI returned valid JSON but with missing required keys (title/steps).', JSON.stringify(scriptObject));
-      return { 
-        success: false, 
-        error: "The AI's response was missing the required 'title' or 'steps' fields. Please try generating the script again." 
-      };
+      throw new Error("AI response was missing required 'title' or 'steps' fields.");
     }
-    // --- END: VALIDATION BLOCK ---
 
     // Save the new script along with the existing user data
     saveDemoState(savedState.provisionResult, scriptObject);
@@ -165,7 +156,7 @@ function generateDemoScript(demoContext) {
       demoScript: scriptObject
     };
   } catch (e) {
-    console.error(`[Code.gs] Failed to parse demo script JSON. Error: ${e.message}. Raw Text: ${scriptGenerationResult.text}`);
+    console.error(`[Code.gs] Failed to parse or validate demo script JSON. Error: ${e.message}. Raw Text: ${scriptGenerationResult.text}`);
     return {
       success: false,
       error: `The AI returned malformed data that could not be read. Please try again.`
@@ -177,30 +168,40 @@ function generateDemoScript(demoContext) {
 // State Management Functions
 // =====================================================================================
 function saveDemoState(provisionResult, demoScript) {
-  const userProperties = PropertiesService.getUserProperties();
-  if (provisionResult) {
-    userProperties.setProperty('savedProvisionResult', JSON.stringify(provisionResult));
-  }
-  if (demoScript) {
-    userProperties.setProperty('savedDemoScript', JSON.stringify(demoScript));
+  try {
+    const userProperties = PropertiesService.getUserProperties();
+    if (provisionResult) {
+      userProperties.setProperty('savedProvisionResult', JSON.stringify(provisionResult));
+    }
+    if (demoScript) {
+      userProperties.setProperty('savedDemoScript', JSON.stringify(demoScript));
+    }
+  } catch(e) {
+    console.error("Error saving state to UserProperties: " + e.toString());
   }
 }
 
 function loadDemoState() {
-  const userProperties = PropertiesService.getUserProperties();
-  const savedProvisionResult = userProperties.getProperty('savedProvisionResult');
-  const savedDemoScript = userProperties.getProperty('savedDemoScript');
-
-  if (savedProvisionResult) {
-    const result = {
-      provisionResult: JSON.parse(savedProvisionResult),
-      demoScript: savedDemoScript ? JSON.parse(savedDemoScript) : null
-    };
-    // Never send the password back on initial load for security.
-    if(result.provisionResult.password) {
-      delete result.provisionResult.password;
+  try {
+    const userProperties = PropertiesService.getUserProperties();
+    const savedProvisionResult = userProperties.getProperty('savedProvisionResult');
+    
+    if (savedProvisionResult) {
+      const savedDemoScript = userProperties.getProperty('savedDemoScript');
+      const result = {
+        provisionResult: JSON.parse(savedProvisionResult),
+        demoScript: savedDemoScript ? JSON.parse(savedDemoScript) : null
+      };
+      // Never send the password back on initial load for security.
+      if (result.provisionResult.password) {
+        delete result.provisionResult.password;
+      }
+      return result;
     }
-    return result;
+  } catch(e) {
+     console.error("Error loading or parsing state from UserProperties: " + e.toString());
+     // Clear potentially corrupted properties
+     clearDemoState();
   }
   return null;
 }
@@ -216,16 +217,15 @@ function clearDemoState() {
 }
 
 /**
- * Clears all user properties for the current user.
- * This is used to reset the client-side state without deleting the user account.
+ * [FIXED] Clears only the application-specific properties for the current user.
+ * This is used for the "Start Over" button.
  */
 function clearUserData() {
-  PropertiesService.getUserProperties().deleteAllProperties();
-  console.log('All user properties cleared.');
+  clearDemoState();
 }
 
 /**
- * [FIXED] Deletes the demo account user.
+ * Deletes the demo account user and clears the state.
  * @param {string} userEmail The email of the user to delete.
  * @returns {object} The result of the deletion attempt.
  */
@@ -239,7 +239,6 @@ function deleteDemoAccount(userEmail) {
     return { success: false, error: "Authentication failed. Could not get token to delete user." };
   }
 
-  console.log(`Attempting to delete user: ${userEmail}`);
   const url = `https://admin.googleapis.com/admin/directory/v1/users/${userEmail}`;
   const options = {
     method: "DELETE",
@@ -251,10 +250,9 @@ function deleteDemoAccount(userEmail) {
     const response = UrlFetchApp.fetch(url, options);
     const responseCode = response.getResponseCode();
     
-    // 204 No Content is success. 404 means it was already gone. Both are "success" for our purposes.
     if (responseCode === 204 || responseCode === 404) {
       console.log(`Successfully processed deletion for user ${userEmail} (Status: ${responseCode}).`);
-      clearDemoState(); // Clear state since the user is gone.
+      clearDemoState();
       return { success: true };
     } else {
       const errorBody = response.getContentText();
@@ -273,11 +271,9 @@ function deleteDemoAccount(userEmail) {
 function constructDemoScriptPrompt_(demoContext, demoUserFirstName, demoUserLastName, demoUserEmail) {
   return `
     You are an expert demo script writer for Google Workspace. Your task is to generate a step-by-step demo script based on user context.
-    
-    **Output Format:**
     Return ONLY a valid JSON object. Do not include any other text, Markdown formatting, or code fences like \`\`\`json.
     
-    **JSON Schema:**
+    The JSON Schema must be:
     {
       "summary": "A concise, one-paragraph summary of the demo flow, scenario, and goals based on the user context.",
       "title": "A creative and professional title for the demo.",
@@ -293,14 +289,13 @@ function constructDemoScriptPrompt_(demoContext, demoUserFirstName, demoUserLast
       ]
     }
     
-    **CRITICAL RULES:**
+    CRITICAL RULES:
     - The entire output MUST be a single, valid JSON object.
-    - Do NOT include any unescaped quotation marks (single or double) within string values.
-    - Do NOT use markdown like asterisks or backticks. Provide only raw text.
-    - If there are no specific prerequisites for the demo, provide one generic one like "Practice the script before the live demo."
-    - The "prerequisites" field must be a top-level key and its value must be an array of strings.
+    - Do NOT use markdown like asterisks or backticks.
+    - If there are no specific prerequisites, provide one generic one like "Practice the script before the live demo."
+    - The "prerequisites" field MUST be a top-level key and its value must be an array of strings.
 
-    **Demo User & Context:**
+    Demo User & Context:
     * First Name: ${demoUserFirstName}
     * Last Name: ${demoUserLastName}
     * Email: ${demoUserEmail}
@@ -427,8 +422,50 @@ function generateRandomPassword_(length = 14) {
   return password.split('').sort(() => 0.5 - Math.random()).join('');
 }
 
-// --- Authentication Functions (No changes) ---
-function getOAuthService_(){const e="service@cymbal-workshops.iam.gserviceaccount.com",t="-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDVbFypp0IRz/Bc\nnPn+i6afegr9Z6ZmDlPqF98i81GEBwirebfaqxuY2bUwihWVDZtGbfvOsspitfjl\nZOi4V5rdDv/1ZZZmEROjuMdhZvBZXxcGiImpstR90FsF9C+7jH5F6d4LUrPrk0gd\n1Mdc+Bpiu5Ww0Rci4e4VPuBYAA4VBFc1LlpICkVkpCG3d3hRo6c9DZ1kHWpMUsrc\n65Zp/MCG9fE5hXsUrY7Ufe6jqvJB2LATZIb7bbons28acsCooIGtiyXWUTudR12v\nbYuICUSNamh0SUcUDvTkdOrVQCmYrFpEOCInbpg/OavO7ryuffQo+GrgM9gfJVFU\nYJiBihtXAgMBAAECggEAJ2rEEnFZuoB1HCXB5klUlM+th+/Ew8SRqwKNq57Ux1Wl\nPEZWtoQzrJ9I35YhNk41B2T4xMwwpNqHBZcFhEZpy7ohe+kvRdqRjgNqj4q7iUYO\nsp41DqqApFv+87KNvk3MZI00/VJg+HlTMG9EAt+vv9x1YRq88yxXFIVwWdBoyWiV\neNuoZAY4NoRppCB7KCUGsmz1pIPgYG9/cSmLOXQBxcjiXUTk332l334anuB1T38Q\n+aN8sBSyOgzIWCjv7W8cC/cRDMq67yn6JbRotW4PzwNwbdn96R8gaefZzTTFOQyZ\nN35qCSFHBU/c98dQRR2vnllPDKg9VrADnUwRTo2awQKBgQDtON2z0197g8WROyBV\nGyQecl/Zdoz1gjRXMm2p4bipxZJ/kcpJjf9pyG0EDlUwEoZKxZElctuG1o0OM0b/\n9peuB5FIo2IIJL02jP7/+3QuQyUkK0U+nJ5XEPhSzYmhXo09p/VgTFa2JsZhZM2K\nOtWs0uAcaO4hVNSnW1oBQsZU0wKBgQDmUTrMBmDCKgkHwq7MZmDDr1w1mXCLCGMm\nU9crPgDZIO4vXiURSQm84VfvjdM3cQxWOvM53Xr4oYp+k+Wzs5Pgx+tgP2AQPLVF\nbZZXOjU1fB2vh+g0ZI1ZG+YYr0BhBMjw3sOnzwKPjjzCjejaNGtvhUg+xfcpszDO\nPQ0MyK+c7QKBgQDeJlvQNEj9hTg2OjWcHY+kh51lK9TzcNyNL+dsqLpjGmeH2cKj\nQTwIFy6oFrgGDcL/MKctd7NHQZLU0oZR297Nlb6jVIXQdH9RH5cJp7R0QmL8zRzK\ndqb9iCHUgTC7Eq2YKLrsVHD7obIzsM+e/FvvvYcsc8NVKXj/xNezyJGtCwKBgQDW\n1xzepnBpjiaAS7UcS7+lqhV8lhXqSzeZ0Aldd+f4ooQsQUiYeCYSP630crp89AIL\nCdBKwPPtq1pyOmnBmBiwTCyeyl9Epix9h/z+fviVXKKgU0liXg2P+rtHeWq3VWxP\na6zdAvgjiw3YeeGkcdNp4s0CaU3mYxV6vG5I54cQ/QKBgHf4sKDXQTTeQa5RqYap\ns1u3g+X2b2JjqQxFJVIpQSPiJxVx/MvkXUsAtxgXJAPljBVqWvLohGbpWxIxMzO0\nGEqe+kfaVyhgXgsgpcTxvV2Viv8L/EYA6a2JMHtijMMUrwX+yLBuy5WCSpp5ViNi\nfi9VSNqDV0jEVGRlyVmm2Pq9\n-----END PRIVATE KEY-----\n",o="mawi@google.com",r=["https://www.googleapis.com/auth/admin.directory.user"];return OAuth2.createService("DemoGeneratorService_V5").setTokenUrl("https://accounts.google.com/o/oauth2/token").setPrivateKey(t).setIssuer(e).setSubject(o).setPropertyStore(PropertiesService.getScriptProperties()).setCache(CacheService.getScriptCache()).setScope(r.join(" "))}
-function getService_(){const e=getOAuthService_();return e&&e.hasAccess()?e:(console.error("Failed to get a valid OAuth2 service or the service has no access."),null)}
-function getAdminAccessToken(){try{const e=getService_();if(e)return e.getAccessToken();throw new Error("Could not get a valid OAuth2 service object.")}catch(e){return console.error("Exception in getAdminAccessToken:",e.toString()),null}}
-function resetAuthentication(){getOAuthService_().reset()}
+// --- Authentication Functions ---
+function getOAuthService_(privateKey, clientEmail) {
+  const impersonatedUser = "mawi@cymbal.se";
+
+  return OAuth2.createService('DemoGeneratorAdminService')
+    .setTokenUrl('https://accounts.google.com/o/oauth2/token')
+    .setPrivateKey(privateKey)
+    .setIssuer(clientEmail)
+    .setSubject(impersonatedUser)
+    .setPropertyStore(PropertiesService.getUserProperties())
+    .setCache(CacheService.getUserCache())
+    .setLock(LockService.getUserLock())
+    .setScope("https://www.googleapis.com/auth/admin.directory.user");
+}
+
+function getService_() {
+  const private_key = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDsphzrkBjIePMg\nyYGBGOPkewPKw2T4fbbfA4QQYnqP+GxN2kuve+E5mcDytGyESBUa9eM2q8LMbQ7U\nzqkntCG2Ug7CY+9iiVm8bHwrKXjzeDEvOlN1++gpnzQH15up8Uq8fq/JWtztYi0L\n1U4NK6B/aCDyhYO+oX1OQyj4DvZS35pzBqAbw/CmG3pHmh/CmG1u/lk3diAbmMiW\nwvDNnKxKODGPiVI/rp1w6DfdjzcTwg8hiJ3+lWubcuTZ3Z2FmRluRd8XFwDwqbuc\nKfosxsQgHw13heCoALfZILnew4yOR0YsR43kyaHofagieL94OGgR8MTwo0ym6lHV\nSbxeXaOVAgMBAAECggEAAaC0Tl0QTW791I6L/EfW57zsBPg8qw93c1VkpKfsLpwM\nDGDBXztrjGOFteEXrtmI76EJx0W0ds/vOdMS8BLneVDtmzRDe+hiYPzFL032FKl/\nVtMuPMi7lG9s+WiMm+nana0oi/PNHjm+SyYvq3eqI+Gi+hgTJvu9hfrJkSPOWYMj\njgdo8p3s6FXM5U6V2jt0rQ9/m9q8KQyNbhhA8eEiaUZ/jwM8DIwoFPW+icMH2NGW\nBz7pT3feJ6BqVI3a86Rf+kxo18MCGe7VhYTs9sRCtefiMuPoHTmMIXz6imoRoTcm\nYSqoSG14uFD9j2S9SBRN5kPVZ3DTkMFlEXJ9t118JwKBgQD4nhOpRrPVl/xxkwq2\n7re3dr2174QTyMAsLmKiEyt5LlBVecktZAVNZJ2rpnRk8ul9ZqzxdZt5LVAUagO4\nENsYO2/qErONu3EcQjqWkStKeJrOW2NJNMnZgT6ta0PQxxsaWUG6PAcOp4+TMBwj\nchxLmQG3szIrRzeVoj1o1SaXdwKBgQDzrQ3Us99VcPBgOOQZD36ERPtW3FYm5OCx\n8d2BpEoslr6egKH4R7qkJv/99BgpteqgRClIIE0IlNW58PFCBlgUh8KHHOSFiST5\nhwgkiw0mFDcn6fqDAyAIJQjaIZ50wEezaZ3Emiy6jxlkrjTMPGBaIYxNyLByiWFN\nLx7P0yu4UwKBgBY586IHix5GVzBEKAoQr2X8fJteTV2DbgLFJtY8hn9v74ikuaKQ\nNZUksJ/e4rr/qHYojr+LdxnPPkCE9c4n255/+dJgV6MNJeCT3y8EzWz7+UMHkonB\n6WXDkznnxAlPM5IYdrLSmQLrYf+TpoBYvETZ6fhlUc/irwp2lazgmXGjAoGBAIBN\nTyn+p4oqVDal3dwgH2Jvm9MpYqdJ/dFT42ieY3vEx4tXeXDr+6bw7fr+KjbUFTzb\nhsz2TPlGvJ4R8kXsZzYwIUnY+a4h/vjvk2cCXCL/o+b9OK0A2T3Qmi+YYgFhOJ+L\n7ckV0JVOQXWUkDI1XBo47dIK6HT2RuhH9jZBHxUHAoGAAunSPHqU2XU1HP0X57eo\n1DVKkR8ZbUwZPl2Km9KZWsOym26ChsDPOeoDqgFBXjEPFsYdcJ79dEkjByMIJImK\nKf0btVWkgVAWeXAbCoWDieMlWe+G5Q0cFyHZquFZMJu+2jRwOTduqCGAFOT3OwzE\nWhR+uwkARi6nRqaxpXbwitY=\n-----END PRIVATE KEY-----\n";
+  const client_email = "ai-demos@cymbal-workshops.iam.gserviceaccount.com";
+
+  var service = getOAuthService_(private_key, client_email);
+
+  if (service && service.hasAccess()) {
+    return service;
+  } else {
+    Logger.log('getService_(): Access denied. Last Error: ' + (service ? service.getLastError() : "Service object was null."));
+    return null;
+  }
+}
+
+function getAdminAccessToken() {
+  var service = getService_();
+  if (service) {
+    return service.getAccessToken();
+  } else {
+    // This provides a clearer error back to the client if auth fails.
+    throw new Error("Could not get a valid OAuth2 service object. Check server logs for details.");
+  }
+}
+
+function resetAuthentication() {
+  const private_key = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDsphzrkBjIePMg\nyYGBGOPkewPKw2T4fbbfA4QQYnqP+GxN2kuve+E5mcDytGyESBUa9eM2q8LMbQ7U\nzqkntCG2Ug7CY+9iiVm8bHwrKXjzeDEvOlN1++gpnzQH15up8Uq8fq/JWtztYi0L\n1U4NK6B/aCDyhYO+oX1OQyj4DvZS35pzBqAbw/CmG3pHmh/CmG1u/lk3diAbmMiW\nwvDNnKxKODGPiVI/rp1w6DfdjzcTwg8hiJ3+lWubcuTZ3Z2FmRluRd8XFwDwqbuc\nKfosxsQgHw13heCoALfZILnew4yOR0YsR43kyaHofagieL94OGgR8MTwo0ym6lHV\nSbxeXaOVAgMBAAECggEAAaC0Tl0QTW791I6L/EfW57zsBPg8qw93c1VVkpKfsLpwM\nDGDBXztrjGOFteEXrtmI76EJx0W0ds/vOdMS8BLneVDtmzRDe+hiYPzFL032FKl/\nVtMuPMi7lG9s+WiMm+nana0oi/PNHjm+SyYvq3eqI+Gi+hgTJvu9hfrJkSPOWYMj\njgdo8p3s6FXM5U6V2jt0rQ9/m9q8KQyNbhhA8eEiaUZ/jwM8DIwoFPW+icMH2NGW\nBz7pT3feJ6BqVI3a86Rf+kxo18MCGe7VhYTs9sRCtefiMuPoHTmMIXz6imoRoTcm\nYSqoSG14uFD9j2S9SBRN5kPVZ3DTkMFlEXJ9t118JwKBgQD4nhOpRrPVl/xxkwq2\n7re3dr2174QTyMAsLmKiEyt5LlBVecktZAVNZJ2rpnRk8ul9ZqzxdZt5LVAUagO4\nENsYO2/qErONu3EcQjqWkStKeJrOW2NJNMnZgT6ta0PQxxsaWUG6PAcOp4+TMBwj\nchxLmQG3szIrRzeVoj1o1SaXdwKBgQDzrQ3Us99VcPBgOOQZD36ERPtW3FYm5OCx\n8d2BpEoslr6egKH4R7qkJv/99BgpteqgRClIIE0IlNW58PFCBlgUh8KHHOSFiST5\nhwgkiw0mFDcn6fqDAyAIJQjaIZ50wEezaZ3Emiy6jxlkrjTMPGBaIYxNyLByiWFN\nLx7P0yu4UwKBgBY586IHix5GVzBEKAoQr2X8fJteTV2DbgLFJtY8hn9v74ikuaKQ\nNZUksJ/e4rr/qHYojr+LdxnPPkCE9c4n255/+dJgV6MNJeCT3y8EzWz7+UMHkonB\n6WXDkznnxAlPM5IYdrLSmQLrYf+TpoBYvETZ6fhlUc/irwp2lazgmXGjAoGBAIBN\nTyn+p4oqVDal3dwgH2Jvm9MpYqdJ/dFT42ieY3vEx4tXeXDr+6bw7fr+KjbUFTzb\nhsz2TPlGvJ4R8kXsZzYwIUnY+a4h/vjvk2cCXCL/o+b9OK0A2T3Qmi+YYgFhOJ+L\n7ckV0JVOQXWUkDI1XBo47dIK6HT2RuhH9jZBHxUHAoGAAunSPHqU2XU1HP0X57eo\n1DVKkR8ZbUwZPl2Km9KZWsOym26ChsDPOeoDqgFBXjEPFsYdcJ79dEkjByMIJImK\nKf0btVWkgVAWeXAbCoWDieMlWe+G5Q0cFyHZquFZMJu+2jRwOTduqCGAFOT3OwzE\nWhR+uwkARi6nRqaxpXbwitY=\n-----END PRIVATE KEY-----\n";
+  const client_email = "ai-demos@cymbal-workshops.iam.gserviceaccount.com";
+
+  var serviceToReset = getOAuthService_(private_key, client_email);
+  serviceToReset.reset();
+  Logger.log("Authentication has been reset.");
+}

@@ -12,7 +12,7 @@
     ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-    .nav-link { padding: 0.5rem 0.75rem; border-radius: 0.375rem; transition: background-color 0.2s, color 0.2s; }
+    .nav-link { padding: 0.5rem 0.75rem; border-radius: 0.375rem; cursor: pointer; transition: background-color 0.2s, color 0.2s; }
     .nav-link.active { background-color: #e0f2fe; color: #0c4a6e; font-weight: 500; }
     .prose h2 { font-size: 1.5rem; font-weight: 700; color: #1e293b; margin-bottom: 2rem; display: flex; align-items: center;}
     .prose h3 { font-size: 1.25rem; font-weight: 600; color: #0284c7; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.75rem; margin-top: 2.5rem; margin-bottom: 1.5rem; }
@@ -42,8 +42,8 @@
           <h1 class="text-xl font-semibold text-slate-700">Demo Script Generator</h1>
         </div>
         <nav class="hidden lg:flex items-center space-x-2">
-          <button id="navLinkAccount" class="nav-link text-slate-700 hover:bg-gray-100">Demo Account</button>
-          <button id="navLinkGenerator" class="nav-link text-slate-700 hover:bg-gray-100">Generate Demo</button>
+          <a id="navLinkAccount" class="nav-link text-slate-700 hover:bg-gray-100">Demo Account</a>
+          <a id="navLinkGenerator" class="nav-link text-slate-700 hover:bg-gray-100">Generate Demo</a>
         </nav>
         <div class="lg:hidden flex items-center">
             <button id="hamburgerButton" class="p-2 rounded-md text-slate-500 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500">
@@ -55,8 +55,8 @@
     </div>
     <div id="mobileMenu" class="lg:hidden hidden border-t border-gray-200">
         <div class="px-2 pt-2 pb-3 space-y-1">
-            <button id="mobileNavLinkAccount" class="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:bg-gray-50 nav-link">Demo Account</button>
-            <button id="mobileNavLinkGenerator" class="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:bg-gray-50 nav-link">Generate Demo</button>
+            <a id="mobileNavLinkAccount" class="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:bg-gray-50 nav-link">Demo Account</a>
+            <a id="mobileNavLinkGenerator" class="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-slate-700 hover:bg-gray-50 nav-link">Generate Demo</a>
         </div>
     </div>
   </header>
@@ -66,10 +66,10 @@
       
       <section id="accountSection">
         <div class="bg-white p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 prose max-w-none">
-          <h2 class="!mt-0"><span class="material-symbols-outlined mr-3 text-blue-600 text-3xl">badge</span>My Demo Account</h2>
+          <h2 class="!mt-0"><span class="material-symbols-outlined mr-3 text-blue-600 text-3xl">badge</span>1. Demo Account</h2>
           
           <div id="userCreationForm" class="hidden">
-             <p class="text-slate-600">Enter a name for the demo persona. A new Google Workspace account will be provisioned based on your email address.</p>
+             <p class="text-slate-600">Enter a name for the demo persona. A new Google Workspace account will be provisioned based on the current user's email address.</p>
              <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 my-6">
                 <div>
                   <label for="userFirstNameInput" class="block text-sm font-medium text-slate-700 mb-1">First Name</label>
@@ -92,7 +92,7 @@
                <div><label class="block text-xs font-medium text-slate-500">Password</label><div class="flex items-center justify-between"><strong id="userPassword" class="text-slate-800 font-mono"></strong><button onclick="copyToClipboard(document.getElementById('userPassword').textContent, this)" class="ml-2 p-1 text-slate-500 hover:text-blue-600" title="Copy Password"><span class="material-symbols-outlined text-sm">content_copy</span></button></div></div>
              </div>
              <div id="resetPasswordContainer" class="hidden mt-4">
-                <p class="text-sm text-slate-500">Forgot the password? Reset it to get a new one.</p>
+                <p class="text-sm text-slate-500">Forgot the password? You can reset it to get a new one.</p>
                 <button id="resetPasswordBtn" type="button" class="mt-2 flex items-center justify-center px-4 py-2 border border-yellow-400 text-sm font-medium rounded-md shadow-sm text-yellow-800 bg-yellow-100 hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500">
                   <span class="material-symbols-outlined mr-2">lock_reset</span>Reset Password
                 </button>
@@ -104,12 +104,12 @@
 
       <section id="generatorSection" class="hidden">
         <div class="bg-white p-6 sm:p-8 rounded-xl shadow-lg border border-gray-200 prose max-w-none">
-            <h2 class="!mt-0"><span class="material-symbols-outlined mr-3 text-blue-600 text-3xl">smart_toy</span>Generate Demo Script</h2>
+            <h2 class="!mt-0"><span class="material-symbols-outlined mr-3 text-blue-600 text-3xl">smart_toy</span>2. Generate Demo Script</h2>
             <p id="generatorInstruction" class="text-slate-600">First, create a demo account. Once the account is ready, you can describe your demo objective below to generate a script.</p>
             <div id="demoConfigForm" class="mt-6">
                 <label for="demoContext" class="block text-sm font-medium text-slate-700 mb-1">Demo Objective / Customer Context:</label>
                 <textarea id="demoContext" rows="5" class="w-full p-3 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 placeholder-slate-400" placeholder="e.g., Showcase how Gemini in Gmail and Docs can help a sales team save time creating proposals and responding to RFPs."></textarea>
-                <button id="generateBtn" type="button" class="mt-6 w-full flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-slate-400 disabled:cursor-not-allowed" disabled>
+                <button id="generateBtn" type="button" class="mt-6 w-full flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-slate-400 disabled:cursor-not-allowed">
                     <span class="material-symbols-outlined mr-2">rocket_launch</span>Generate Demo Script
                 </button>
             </div>
@@ -139,11 +139,8 @@
       </div>
       
        <div id="startOverContainer" class="text-center mt-8 hidden">
-          <button id="startOverBtn" type="button" class="flex items-center justify-center px-6 py-2 border border-gray-300 text-base font-medium rounded-md shadow-sm text-slate-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-             <span class="flex items-center"><span class="material-symbols-outlined mr-2">delete_sweep</span>Start Over</span>
-          </button>
-          <button id="deleteAccountBtn" type="button" class="hidden mt-4 flex items-center justify-center px-4 py-2 border border-red-400 text-sm font-medium rounded-md shadow-sm text-red-800 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
-            Delete Account
+          <button id="startOverBtn" type="button" class="flex items-center justify-center px-6 py-2 border border-red-400 text-base font-medium rounded-md shadow-sm text-red-800 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+             <span class="flex items-center"><span class="material-symbols-outlined mr-2">delete</span>Delete Account & Start Over</span>
           </button>
       </div>
     </div>
@@ -175,7 +172,6 @@
     const errorMessageEl = document.getElementById('errorMessage');
     const startOverContainerEl = document.getElementById('startOverContainer');
     const startOverBtnEl = document.getElementById('startOverBtn');
-    const deleteAccountBtnEl = document.getElementById('deleteAccountBtn');
     const hamburgerButton = document.getElementById('hamburgerButton');
     const mobileMenu = document.getElementById('mobileMenu');
     const navLinks = {
@@ -190,64 +186,32 @@
       showView('loading');
       updateLoadingStatus('Checking for existing demo...');
       google.script.run
-        .withSuccessHandler(savedState => {
+        .withSuccessHandler(state => {
           hideError();
-          if (savedState && savedState.provisionResult) {
-            // User exists, immediately show credentials
-            populateUserCredentials(savedState.provisionResult);
-            if (savedState.demoScript) {
-              renderScriptFromObject(savedState.demoScript);
-              scriptResultDisplayEl.classList.remove('hidden');
-              demoConfigFormEl.classList.add('hidden');
+          if (state && state.provisionResult) {
+            populateUserCredentials(state.provisionResult);
+            if (state.demoScript) {
+              renderScriptFromObject(state.demoScript);
+              showGeneratorView('results');
+            } else {
+              showGeneratorView('form');
             }
-            deleteAccountBtnEl.classList.remove('hidden'); // Show delete button if user exists
             startOverContainerEl.classList.remove('hidden');
           } else {
-            // No user exists, show the creation form
             userCreationFormEl.classList.remove('hidden');
+            userCredentialsDisplayEl.classList.add('hidden');
           }
-          // Show the account section which now contains either the form or the credentials
           showView('account');
         })
-        .withFailureHandler(err => {
-            userCreationFormEl.classList.remove('hidden'); // Also show form on error
-            showError(err.message || 'Could not connect to the server.');
-            showView('account');
-        })
+        .withFailureHandler(onFailure)
         .loadDemoState();
     }
     
     // --- Event Listeners ---
     createUserBtnEl.addEventListener('click', handleCreateUser);
     generateBtnEl.addEventListener('click', handleGenerateScript);
-    startOverBtnEl.addEventListener('click', function() {
-        resetUi();
-        google.script.run.withSuccessHandler(function() {}).clearUserData(); // Clear properties on Start Over click
-    });
-
-    // --- CORRECTED BLOCK ---
-    deleteAccountBtnEl.addEventListener('click', function() {
-        if (confirm("Are you sure you want to delete this demo account? This action cannot be undone.")) {
-            google.script.run
-                .withFailureHandler(err => onFailure(err.message || 'Failed to retrieve account info.'))
-                .withSuccessHandler(accountInfo => {
-                    if (accountInfo && accountInfo.email) {
-                        // If we got the email, proceed with deletion
-                        google.script.run
-                            .withSuccessHandler(resetUi)
-                            .withFailureHandler(err => onFailure(err.message))
-                            .deleteDemoAccount(accountInfo.email);
-                    } else {
-                        // Handle case where account info couldn't be found
-                        onFailure('No demo account found to delete.');
-                    }
-                })
-                .getDemoAccountInfo();
-        }
-    });
-    // --- END CORRECTED BLOCK ---
-
     resetPasswordBtnEl.addEventListener('click', handleResetPassword);
+    startOverBtnEl.addEventListener('click', handleDeleteAccount);
     copyScriptBtnEl.addEventListener('click', () => copyScriptToClipboard(copyScriptBtnEl));
     hamburgerButton.addEventListener('click', () => mobileMenu.classList.toggle('hidden'));
     navLinks.account.forEach(el => el.addEventListener('click', () => showView('account')));
@@ -259,24 +223,22 @@
       const firstName = userFirstNameInputEl.value.trim();
       const lastName = userLastNameInputEl.value.trim();
       if (!firstName || !lastName) {
-        showError("Please enter a first and last name for the demo user.");
-        return;
+        return showError("Please enter a first and last name for the demo user.");
       }
       
       showView('loading');
       updateLoadingStatus("Provisioning demo account...");
       google.script.run
-        .withSuccessHandler(provisionResult => {
-          if (!provisionResult || !provisionResult.success) {
-            onFailure(provisionResult.error || "An unknown error occurred.");
-            return;
+        .withSuccessHandler(result => {
+          if (!result || !result.success) {
+            return onFailure(result.error || "An unknown error occurred during user creation.");
           }
-          populateUserCredentials(provisionResult);
+          populateUserCredentials(result);
           startOverContainerEl.classList.remove('hidden');
-          deleteAccountBtnEl.classList.remove('hidden'); // Show delete button after creating user
+          showGeneratorView('form'); // Show the script form
           showView('account');
         })
-        .withFailureHandler(err => onFailure(err.message))
+        .withFailureHandler(onFailure)
         .createUser({ firstName, lastName });
     }
 
@@ -284,39 +246,27 @@
       hideError();
       const context = demoContextInputEl.value.trim();
       if (!context) {
-        showError("Please enter a demo objective.");
-        return;
+        return showError("Please enter a demo objective.");
       }
 
-      showView('loading');
-      updateLoadingStatus("Generating script with AI...");
-      demoConfigFormEl.classList.add('hidden');
-      scriptResultDisplayEl.classList.remove('hidden');
-      scriptContentEl.innerHTML = ''; // Clear previous results
-
+      showGeneratorView('loading'); // Show loading within the generator section
       google.script.run
-        .withSuccessHandler(scriptObject => {
-          if (!scriptObject || scriptObject.error) {
-              onFailure(scriptObject.error || "The AI failed to generate a script. Please try again.");
-              scriptResultDisplayEl.classList.add('hidden');
-              demoConfigFormEl.classList.remove('hidden');
-              return;
+        .withSuccessHandler(result => {
+          if (!result || !result.success) {
+            showGeneratorView('form'); // Go back to form on failure
+            return showError(result.error || "The AI failed to generate a script. Please try again.");
           }
-          renderScriptFromObject(scriptObject);
-          showView('generator'); // Stay on the generator view
+          renderScriptFromObject(result.demoScript);
+          showGeneratorView('results');
         })
-        .withFailureHandler(err => {
-            onFailure(err.message);
-            scriptResultDisplayEl.classList.add('hidden');
-            demoConfigFormEl.classList.remove('hidden');
-        })
+        .withFailureHandler(onFailure)
         .generateDemoScript(context);
     }
 
     function handleResetPassword() {
         hideError();
-        showView('loading');
-        updateLoadingStatus('Resetting password...');
+        const originalText = resetPasswordBtnEl.innerHTML;
+        resetPasswordBtnEl.innerHTML = '<div class="animate-spin w-5 h-5 border-2 border-gray-400 border-t-yellow-600 rounded-full"></div>';
         resetPasswordBtnEl.disabled = true;
 
         google.script.run
@@ -325,41 +275,41 @@
                     userPasswordEl.textContent = response.password;
                     resetPasswordContainerEl.classList.add('hidden'); // Hide after successful reset
                 } else {
-                    onFailure(response.error || 'Failed to reset password.');
+                    showError(response.error || 'Failed to reset password.');
                 }
-                resetPasswordBtnEl.disabled = false;
-                showView('account');
             })
-            .withFailureHandler(err => {
-                onFailure(err.message);
+            .withFailureHandler(err => showError(err.message))
+            .always(() => {
+                resetPasswordBtnEl.innerHTML = originalText;
                 resetPasswordBtnEl.disabled = false;
             })
             .resetPasswordForDemoUser();
     }
-    
-    function resetUi() {
-        userCreationFormEl.classList.remove('hidden');
-        userCredentialsDisplayEl.classList.add('hidden');
-        scriptResultDisplayEl.classList.add('hidden');
-        resetPasswordContainerEl.classList.add('hidden');
-        demoConfigFormEl.classList.remove('hidden');
-        startOverContainerEl.classList.add('hidden');
-        deleteAccountBtnEl.classList.add('hidden');
-        scriptContentEl.innerHTML = '<p class="text-slate-400">Your generated script will appear here...</p>';
 
-        userFirstNameInputEl.value = '';
-        userLastNameInputEl.value = '';
-        demoContextInputEl.value = '';
-
-        generateBtnEl.disabled = true;
-        generatorInstructionEl.textContent = "First, create a demo account. Once the account is ready, you can describe your demo objective below to generate a script.";
-
-        showView('account');
+    function handleDeleteAccount() {
+        const email = userEmailEl.textContent;
+        if (!email || !confirm("Are you sure you want to delete this demo account? This action cannot be undone.")) {
+            return;
+        }
+        showView('loading');
+        updateLoadingStatus('Deleting account and resetting...');
+        google.script.run
+            .withSuccessHandler(response => {
+                if (!response || !response.success) {
+                   return onFailure(response.error || 'Failed to delete account, but session was cleared.');
+                }
+                // Reload the page to its initial state
+                window.location.reload();
+            })
+            .withFailureHandler(onFailure)
+            .deleteDemoAccount(email);
     }
 
     // --- UI Update & Rendering Functions ---
     function showView(viewName) {
-      [accountSectionEl, generatorSectionEl, loadingIndicatorEl].forEach(el => el.classList.add('hidden'));
+      loadingIndicatorEl.classList.add('hidden');
+      accountSectionEl.classList.add('hidden');
+      generatorSectionEl.classList.add('hidden');
       hideError();
       mobileMenu.classList.add('hidden');
       Object.values(navLinks).flat().forEach(el => el.classList.remove('active'));
@@ -375,6 +325,23 @@
       }
     }
     
+    function showGeneratorView(view) {
+        scriptResultDisplayEl.classList.add('hidden');
+        demoConfigFormEl.classList.add('hidden');
+        scriptContentEl.previousElementSibling.classList.add('hidden'); // Hides the loading indicator within the script section
+        
+        if (view === 'form') {
+            demoConfigFormEl.classList.remove('hidden');
+        } else if (view === 'results') {
+            scriptResultDisplayEl.classList.remove('hidden');
+        } else if (view === 'loading') {
+            // This is a placeholder for a potential smaller loader
+            demoConfigFormEl.classList.add('hidden');
+            scriptResultDisplayEl.classList.add('hidden');
+            // You could show a smaller loader here if you add one
+        }
+    }
+
     function populateUserCredentials(provisionResult) {
         userEmailEl.textContent = provisionResult.email || "N/A";
         
@@ -389,18 +356,19 @@
             resetPasswordContainerEl.classList.remove('hidden');
         }
         
+        generatorInstructionEl.textContent = "Your demo account is ready. You can now generate a script for it in the 'Generate Demo' section.";
         generateBtnEl.disabled = false;
-        generatorInstructionEl.textContent = "Your demo account is ready. Now, describe your demo objective below to generate a script with AI.";
     }
 
-    function onFailure(errorMessage) {
-      showError(errorMessage);
-      showView('account');
+    function onFailure(error) {
+      showError(typeof error === 'string' ? error : error.message || "An unknown server error occurred.");
+      showView('account'); // Default to account view on failure
     }
 
     function showError(message) {
       errorMessageEl.textContent = message;
       errorDisplayEl.classList.remove('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     function hideError() {
@@ -429,15 +397,16 @@
       if (scriptObject.summary) {
         const summaryTitleEl = document.createElement('h3');
         summaryTitleEl.textContent = "Demo Summary";
+        scriptContentEl.appendChild(summaryTitleEl);
         const summaryTextEl = document.createElement('p');
         summaryTextEl.textContent = sanitize(scriptObject.summary);
-        scriptContentEl.appendChild(summaryTitleEl);
         scriptContentEl.appendChild(summaryTextEl);
       }
 
       if (scriptObject.prerequisites && scriptObject.prerequisites.length > 0) {
         const prereqsTitleEl = document.createElement('h3');
         prereqsTitleEl.textContent = "Prerequisites";
+        scriptContentEl.appendChild(prereqsTitleEl);
         const prereqsListEl = document.createElement('ul');
         prereqsListEl.classList.add('list-disc', 'ml-6', 'mb-6');
         scriptObject.prerequisites.forEach(prereq => {
@@ -445,7 +414,6 @@
           li.textContent = sanitize(prereq);
           prereqsListEl.appendChild(li);
         });
-        scriptContentEl.appendChild(prereqsTitleEl);
         scriptContentEl.appendChild(prereqsListEl);
       }
 
@@ -455,7 +423,7 @@
 
       scriptObject.steps.forEach((step, index) => {
         const stepTitleEl = document.createElement('h3');
-        stepTitleEl.textContent = step.step_title;
+        stepTitleEl.textContent = `Step ${index + 1}: ${step.step_title || ''}`;
         scriptContentEl.appendChild(stepTitleEl);
         createBlock('Action', step.action, 'action-block', plainFormatter);
         createBlock('UI Interaction', step.ui_interaction, 'ui-interaction-block', plainFormatter);
@@ -481,7 +449,7 @@
     
     // --- Utility Functions ---
     function copyToClipboard(text, buttonElement) {
-        if (text === '••••••••••••') { // Don't copy the placeholder
+        if (text === '••••••••••••') {
             const originalIcon = buttonElement.innerHTML;
             buttonElement.innerHTML = '<span class="material-symbols-outlined text-sm text-red-600">close</span>';
             setTimeout(() => { buttonElement.innerHTML = originalIcon; }, 1500);
@@ -518,4 +486,3 @@
   </script>
 </body>
 </html>
-```
