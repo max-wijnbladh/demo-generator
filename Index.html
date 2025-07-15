@@ -493,7 +493,7 @@
 
       scriptObject.steps.forEach((step, index) => {
         const stepTitleEl = document.createElement('h3');
-        stepTitleEl.textContent = `Step ${index + 1}: ${step.step_title || ''}`;
+        stepTitleEl.textContent = step.step_title || '';
         scriptContentEl.appendChild(stepTitleEl);
         createBlock('Action', step.action, 'action-block', plainFormatter);
         createBlock('UI Interaction', step.ui_interaction, 'ui-interaction-block', plainFormatter);
