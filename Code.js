@@ -7,13 +7,28 @@
  * - PRIVATE_KEY: Private key for the Service Account.
  * - CLIENT_EMAIL: Email address of the Service Account.
  * - IMPERSONATED_USER: Email address of the user to impersonate (e.g., admin@domain.com).
+ *
+ * OPTIONAL SCRIPT PROPERTIES (defaults used if missing):
+ * - PRIMARY_DOMAIN: The domain for creating demo users (default: cymbal.se).
+ * - GEMINI_MODEL: The Gemini model to use (default: models/gemini-1.5-flash-latest).
+ * - LOGGING_SHEET_ID: ID of the Google Sheet for logging (default: hardcoded fallback).
  */
 
-// --- Configuration Constants ---
-const PRIMARY_DOMAIN_CONFIG = 'cymbal.se';
-const DEMO_SCRIPT_GEMINI_MODEL_CONFIG = 'models/gemini-1.5-flash-latest';
-// Hardcoded Sheet ID for logging prompts and outputs.
-const LOGGING_SHEET_ID = '154d_7tRcMxkDrfPtmVFApY6W42a-Vv6RrnuzMUMxIHI';
+// =====================================================================================
+// Configuration Helpers
+// =====================================================================================
+
+function getPrimaryDomain() {
+  return PropertiesService.getScriptProperties().getProperty('PRIMARY_DOMAIN') || 'cymbal.se';
+}
+
+function getGeminiModel() {
+  return PropertiesService.getScriptProperties().getProperty('GEMINI_MODEL') || 'models/gemini-1.5-flash-latest';
+}
+
+function getLoggingSheetId() {
+  return PropertiesService.getScriptProperties().getProperty('LOGGING_SHEET_ID') || '154d_7tRcMxkDrfPtmVFApY6W42a-Vv6RrnuzMUMxIHI';
+}
 
 /**
  * Serves the HTML for the web app.
@@ -43,9 +58,8 @@ function getInitialAppState() {
   }
 
   // Construct the potential demo email address based on the app user's email
-  // [FIXED] Removed the special case for mawi@google.com
   const requestingUserPrefix = requestingUserEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-  const primaryEmail = `${requestingUserPrefix}@${PRIMARY_DOMAIN_CONFIG}`;
+  const primaryEmail = `${requestingUserPrefix}@${getPrimaryDomain()}`;
 
   const token = getAdminAccessToken();
   if (!token) {
@@ -75,12 +89,14 @@ function getInitialAppState() {
 
       // Save the found user's data to properties so other functions can use it
       saveDemoState(provisionResult, null);
-      const savedDemoScript = PropertiesService.getUserProperties().getProperty('savedDemoScript');
+
+      // Retrieve any existing script for this user
+      const savedState = loadDemoState();
 
       return {
         success: true,
         provisionResult: provisionResult,
-        demoScript: savedDemoScript ? JSON.parse(savedDemoScript) : null
+        demoScript: savedState ? savedState.demoScript : null
       };
     } else {
       // User does NOT exist. Tell the UI to show the creation form.
@@ -204,7 +220,7 @@ function generateDemoScript(demoContext) {
     lastName: newUserLastName
   } = savedState.provisionResult;
   const demoScriptPrompt = constructDemoScriptPrompt_(demoContext, newUserFirstName, newUserLastName, newUserEmail);
-  const scriptGenerationResult = callGeminiAPI(demoScriptPrompt, DEMO_SCRIPT_GEMINI_MODEL_CONFIG);
+  const scriptGenerationResult = callGeminiAPI(demoScriptPrompt, getGeminiModel());
 
   if (!scriptGenerationResult.success || !scriptGenerationResult.text) {
     console.error('[Code.gs] Demo script generation failed:', scriptGenerationResult.error);
@@ -287,14 +303,26 @@ function deleteDemoAccount(userEmail) {
 // =====================================================================================
 // State Management Functions
 // =====================================================================================
+
+function getNamespacedKey_(key) {
+  const userEmail = Session.getActiveUser().getEmail();
+  // Fallback to a generic key if email isn't available (shouldn't happen in authenticated web app)
+  if (!userEmail) {
+    console.warn("No active user email found. Using generic key.");
+    return key;
+  }
+  return `${key}_${userEmail}`;
+}
+
 function saveDemoState(provisionResult, demoScript) {
   try {
     const userProperties = PropertiesService.getUserProperties();
+
     if (provisionResult) {
-      userProperties.setProperty('savedProvisionResult', JSON.stringify(provisionResult));
+      userProperties.setProperty(getNamespacedKey_('savedProvisionResult'), JSON.stringify(provisionResult));
     }
     if (demoScript) {
-      userProperties.setProperty('savedDemoScript', JSON.stringify(demoScript));
+      userProperties.setProperty(getNamespacedKey_('savedDemoScript'), JSON.stringify(demoScript));
     }
   } catch(e) {
     console.error("Error saving state to UserProperties: " + e.toString());
@@ -302,16 +330,16 @@ function saveDemoState(provisionResult, demoScript) {
 }
 
 /**
- * [ADDED BACK] Loads the currently saved state from UserProperties.
+ * Loads the currently saved state from UserProperties.
  * This is used by functions that run after the initial load.
  */
 function loadDemoState() {
   try {
     const userProperties = PropertiesService.getUserProperties();
-    const savedProvisionResult = userProperties.getProperty('savedProvisionResult');
+    const savedProvisionResult = userProperties.getProperty(getNamespacedKey_('savedProvisionResult'));
 
     if (savedProvisionResult) {
-      const savedDemoScript = userProperties.getProperty('savedDemoScript');
+      const savedDemoScript = userProperties.getProperty(getNamespacedKey_('savedDemoScript'));
       const result = {
         provisionResult: JSON.parse(savedProvisionResult),
         demoScript: savedDemoScript ? JSON.parse(savedDemoScript) : null
@@ -331,8 +359,8 @@ function loadDemoState() {
  */
 function clearDemoState() {
   const userProperties = PropertiesService.getUserProperties();
-  userProperties.deleteProperty('savedProvisionResult');
-  userProperties.deleteProperty('savedDemoScript');
+  userProperties.deleteProperty(getNamespacedKey_('savedProvisionResult'));
+  userProperties.deleteProperty(getNamespacedKey_('savedDemoScript'));
   console.log('Internal call: Demo state cleared.');
 }
 
@@ -340,7 +368,7 @@ function clearDemoState() {
  * Clears only the saved demo script from UserProperties.
  */
 function clearDemoScriptOnly() {
-  PropertiesService.getUserProperties().deleteProperty('savedDemoScript');
+  PropertiesService.getUserProperties().deleteProperty(getNamespacedKey_('savedDemoScript'));
   console.log('Demo script data cleared.');
 }
 
@@ -352,7 +380,7 @@ function clearDemoScriptOnly() {
 function logPromptAndOutput(prompt, output) {
   try {
     // Attempt to open the spreadsheet by ID
-    const spreadsheet = SpreadsheetApp.openById(LOGGING_SHEET_ID);
+    const spreadsheet = SpreadsheetApp.openById(getLoggingSheetId());
     // Get the first sheet
     const sheet = spreadsheet.getSheets()[0];
     // Append the log entry
@@ -408,9 +436,8 @@ function createDemoUserInRoot(requestingUserEmail, firstName, lastName) {
   const token = getAdminAccessToken();
   if (!token) return { success: false, error: "Could not get authentication token to manage users." };
 
-  // [FIXED] Removed the special case for mawi@google.com
   const requestingUserPrefix = requestingUserEmail.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-  const primaryEmail = `${requestingUserPrefix}@${PRIMARY_DOMAIN_CONFIG}`;
+  const primaryEmail = `${requestingUserPrefix}@${getPrimaryDomain()}`;
 
   try {
     const checkUserUrl = `https://admin.googleapis.com/admin/directory/v1/users/${primaryEmail}`;
