@@ -200,6 +200,8 @@ function generateDemoScript(demoContext) {
 
   if (!scriptGenerationResult.success || !scriptGenerationResult.text) {
     console.error('[Code.gs] Demo script generation failed:', scriptGenerationResult.error);
+    // Log the prompt and failed output
+    logPromptAndOutput(demoScriptPrompt, "Script generation failed: " + scriptGenerationResult.error);
     return {
       success: false,
       error: `Demo script generation failed: ${scriptGenerationResult.error}`
@@ -216,12 +218,16 @@ function generateDemoScript(demoContext) {
 
     // Save the new script along with the existing user data
     saveDemoState(savedState.provisionResult, scriptObject);
+    // Log the prompt and successful output
+    logPromptAndOutput(demoScriptPrompt, JSON.stringify(scriptObject));
     return {
       success: true,
       demoScript: scriptObject
     };
   } catch (e) {
     console.error(`[Code.gs] Failed to parse or validate demo script JSON. Error: ${e.message}. Raw Text: ${scriptGenerationResult.text}`);
+    // Log the prompt and the raw, malformed output
+    logPromptAndOutput(demoScriptPrompt, "Malformed AI response: " + scriptGenerationResult.text);
     return {
       success: false,
       error: `The AI returned malformed data that could not be read. Please try again.`
@@ -330,6 +336,20 @@ function clearDemoScriptOnly() {
   console.log('Demo script data cleared.');
 }
 
+/**
+ * Logs the prompt and output to a specified Google Sheet.
+ * @param {string} prompt The user's prompt.
+ * @param {string} output The generated output.
+ */
+function logPromptAndOutput(prompt, output) {
+  const sheetId = '154d_7tRcMxkDrfPtmVFApY6W42a-Vv6RrnuzMUMxIHI'; // Your Google Sheet ID
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetById(sheetId) || SpreadsheetApp.openById(sheetId).getSheets()[0];
+    sheet.appendRow([new Date(), prompt, output]);
+  } catch (e) {
+    console.error("Error logging prompt and output to Google Sheet:", e.message);
+  }
+}
 
 // =====================================================================================
 // Helper & Core Logic Functions
@@ -503,8 +523,7 @@ function getOAuthService_(privateKey, clientEmail) {
 }
 
 function getService_() {
-  const private_key = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDsphzrkBjIePMg\nyYGBGOPkewPKw2T4fbbfA4QQYnqP+GxN2kuve+E5mcDytGyESBUa9eM2q8LMbQ7U\nzqkntCG2Ug7CY+9iiVm8bHwrKXjzeDEvOlN1++gpnzQH15up8Uq8fq/JWtztYi0L\n1U4NK6B/aCDyhYO+oX1OQyj4DvZS35pzBqAbw/CmG3pHmh/CmG1u/lk3diAbmMiW\nwvDNnKxKODGPiVI/rp1w6DfdjzcTwg8hiJ3+lWubcuTZ3Z2FmRluRd8XFwDwqbuc\nKfosxsQgHw13heCoALfZILnew4yOR0YsR43kyaHofagieL94OGgR8MTwo0ym6lHV\nSbxeXaOVAgMBAAECggEAAaC0Tl0QTW791I6L/EfW57zsBPg8qw93c1VVkpKfsLpwM\nDGDBXztrjGOFteEXrtmI76EJx0W0ds/vOdMS8BLneVDtmzRDe+hiYPzFL032FKl/\nVtMuPMi7lG9s+WiMm+nana0oi/PNHjm+SyYvq3eqI+Gi+hgTJvu9hfrJkSPOWYMj\njgdo8p3s6FXM5U6V2jt0rQ9/m9q8KQyNbhhA8eEiaUZ/jwM8DIwoFPW+icMH2NGW\nBz7pT3feJ6BqVI3a86Rf+kxo18MCGe7VhYTs9sRCtefiMuPoHTmMIXz6imoRoTcm\nYSqoSG14uFD9j2S9SBRN5kPVZ3DTkMFlEXJ9t118JwKBgQD4nhOpRrPVl/xxkwq2\n7re3dr2174QTyMAsLmKiEyt5LlBVecktZAVNZJ2rpnRk8ul9ZqzxdZt5LVAUagO4\nENsYO2/qErONu3EcQjqWkStKeJrOW2NJNMnZgT6ta0PQxxsaWUG6PAcOp4+TMBwj\nchxLmQG3szIrRzeVoj1o1SaXdwKBgQDzrQ3Us99VcPBgOOQZD36ERPtW3FYm5OCx\n8d2BpEoslr6egKH4R7qkJv/99BgpteqgRClIIE0IlNW58PFCBlgUh8KHHOSFiST5\nhwgkiw0mFDcn6fqDAyAIJQjaIZ50wEezaZ3Emiy6jxlkrjTMPGBaIYxNyLByiWFN\nLx7P0yu4UwKBgBY586IHix5GVzBEKAoQr2X8fJteTV2DbgLFJtY8hn9v74ikuaKQ\nNZUksJ/e4rr/qHYojr+LdxnPPkCE9c4n255/+dJgV6MNJeCT3y8EzWz7+UMHkonB\n6WXDkznnxAlPM5IYdrLSmQLrYf+TpoBYvETZ6fhlUc/irwp2lazgmXGjAoGBAIBN\nTyn+p4oqVDal3dwgH2Jvm9MpYqdJ/dFT42ieY3vEx4tXeXDr+6bw7fr+KjbUFTzb\nhsz2TPlGvJ4R8kXsZzYwIUnY+a4h/vjvk2cCXCL/o+b9OK0A2T3Qmi+YYgFhOJ+L\n7ckV0JVOQXWUkDI1XBo47dIK6HT2RuhH9jZBHxUHAoGAAunSPHqU2XU1HP0X57eo\n1DVKkR8ZbUwZPl2Km9KZWsOym26ChsDPOeoDqgFBXjEPFsYdcJ79dEkjByMIJImK\nKf0btVWkgVAWeXAbCoWDieMlWe+G5Q0cFyHZquFZMJu+2jRwOTduqCGAFOT3OwzE\nWhR+uwkARi6nRqaxpXbwitY=\n-----END PRIVATE KEY-----\n";
-  const client_email = "ai-demos@cymbal-workshops.iam.gserviceaccount.com";
+
 
   var service = getOAuthService_(private_key, client_email);
 
@@ -527,7 +546,7 @@ function getAdminAccessToken() {
 }
 
 function resetAuthentication() {
-  const private_key = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDsphzrkBjIePMg\nyYGBGOPkewPKw2T4fbbfA4QQYnqP+GxN2kuve+E5mcDytGyESBUa9eM2q8LMbQ7U\nzqkntCG2Ug7CY+9iiVm8bHwrKXjzeDEvOlN1++gpnzQH15up8Uq8fq/JWtztYi0L\n1U4NK6B/aCDyhYO+oX1OQyj4DvZS35pzBqAbw/CmG3pHmh/CmG1u/lk3diAbmMiW\nwvDNnKxKODGPiVI/rp1w6DfdjzcTwg8hiJ3+lWubcuTZ3Z2FmRluRd8XFwDwqbuc\nKfosxsQgHw13heCoALfZILnew4yOR0YsR43kyaHofagieL94OGgR8MTwo0ym6lHV\nSbxeXaOVAgMBAAECggEAAaC0Tl0QTW791I6L/EfW57zsBPg8qw93c1VVkpKfsLpwM\nDGDBXztrjGOFteEXrtmI76EJx0W0ds/vOdMS8BLneVDtmzRDe+hiYPzFL032FKl/\nVtMuPMi7lG9s+WiMm+nana0oi/PNHjm+SyYvq3eqI+Gi+hgTJvu9hfrJkSPOWYMj\njgdo8p3s6FXM5U6V2jt0rQ9/m9q8KQyNbhhA8eEiaUZ/jwM8DIwoFPW+icMH2NGW\nBz7pT3feJ6BqVI3a86Rf+kxo18MCGe7VhYTs9sRCtefiMuPoHTmMIXz6imoRoTcm\nYSqoSG14uFD9j2S9SBRN5kPVZ3DTkMFlEXJ9t118JwKBgQD4nhOpRrPVl/xxkwq2\n7re3dr2174QTyMAsLmKiEyt5LlBVecktZAVNZJ2rpnRk8ul9ZqzxdZt5LVAUagO4\nENsYO2/qErONu3EcQjqWkStKeJrOW2NJNMnZgT6ta0PQxxsaWUG6PAcOp4+TMBwj\nchxLmQG3szIrRzeVoj1o1SaXdwKBgQDzrQ3Us99VcPBgOOQZD36ERPtW3FYm5OCx\n8d2BpEoslr6egKH4R7qkJv/99BgpteqgRClIIE0IlNW58PFCBlgUh8KHHOSFiST5\nhwgkiw0mFDcn6fqDAyAIJQjaIZ50wEezaZ3Emiy6jxlkrjTMPGBaIYxNyLByiWFN\nLx7P0yu4UwKBgBY586IHix5GVzBEKAoQr2X8fJteTV2DbgLFJtY8hn9v74ikuaKQ\nNZUksJ/e4rr/qHYojr+LdxnPPkCE9c4n255/+dJgV6MNJeCT3y8EzWz7+UMHkonB\n6WXDkznnxAlPM5IYdrLSmQLrYf+TpoBYvETZ6fhlUc/irwp2lazgmXGjAoGBAIBN\nTyn+p4oqVDal3dwgH2Jvm9MpYqdJ/dFT42ieY3vEx4tXeXDr+6bw7fr+KjbUFTzb\nhsz2TPlGvJ4R8kXsZzYwIUnY+a4h/vjvk2cCXCL/o+b9OK0A2T3Qmi+YYgFhOJ+L\n7ckV0JVOQXWUkDI1XBo47dIK6HT2RuhH9jZBHxUHAoGAAunSPHqU2XU1HP0X57eo\n1DVKkR8ZbUwZPl2Km9KZWsOym26ChsDPOeoDqgFBXjEPFsYdcJ79dEkjByMIJImK\nKf0btVWkgVAWeXAbCoWDieMlWe+G5Q0cFyHZquFZMJu+2jRwOTduqCGAFOT3OwzE\nWhR+uwkARi6nRqaxpXbwitY=\n-----END PRIVATE KEY-----\n";
+  const private_key = "";
   const client_email = "ai-demos@cymbal-workshops.iam.gserviceaccount.com";
 
   var serviceToReset = getOAuthService_(private_key, client_email);
